@@ -327,6 +327,8 @@ namespace TidyDock
             image.Height = _config.Dock.IconSize - 8;
             image.Margin = showLabel ? new Thickness(4, 0, 4, 2) : new Thickness(4);
             image.Stretch = Stretch.Uniform;
+            image.SnapsToDevicePixels = true;
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
             image.Source = _iconCache.GetIcon(item, _config.Dock.IconSize);
             stack.Children.Add(image);
 

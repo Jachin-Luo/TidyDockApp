@@ -76,10 +76,12 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Reorder Dock items by dragging in edit mode
 - Hover magnification
 - Borderless Dock surface with no icon hover background
+- High-resolution Windows system icon extraction for sharper Dock icons
 - Dock background opacity can be set to 0 for a fully transparent Dock surface
 - Optional Dock item name labels
 - Open apps, files, and URLs
 - Open folder items as an on-demand scrollable folder panel
+- Folder panel rows show compact file/folder icons
 - Folder panel navigation: enter folder, go back, open in Explorer, auto-hide after pointer leaves
 - `Esc` closes the folder panel and settings window
 - Folder panel direction follows Dock position

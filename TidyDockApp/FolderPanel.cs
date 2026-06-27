@@ -311,6 +311,22 @@ namespace TidyDock
             button.MouseEnter += delegate { button.Background = ThemeService.Brush(_palette.TileHover, _palette.IsDark ? 0.28 : 0.38); };
             button.MouseLeave += delegate { button.Background = Brushes.Transparent; };
 
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var image = new Image();
+            image.Width = 18;
+            image.Height = 18;
+            image.Stretch = Stretch.Uniform;
+            image.VerticalAlignment = VerticalAlignment.Center;
+            image.Margin = new Thickness(0, 0, 6, 0);
+            image.SnapsToDevicePixels = true;
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+            image.Source = _iconCache.GetPathIcon(entry.FullName, entry.IsDirectory, 18);
+            Grid.SetColumn(image, 0);
+            row.Children.Add(image);
+
             var text = new TextBlock();
             text.Text = entry.Name;
             text.FontSize = 12;
@@ -321,7 +337,9 @@ namespace TidyDock
             {
                 text.FontWeight = FontWeights.SemiBold;
             }
-            button.Content = text;
+            Grid.SetColumn(text, 1);
+            row.Children.Add(text);
+            button.Content = row;
 
             button.Click += delegate
             {

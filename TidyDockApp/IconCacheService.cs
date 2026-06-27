@@ -32,14 +32,14 @@ namespace TidyDock
                 return LoadBitmap(item.Icon);
             }
 
-            var key = Hash((item.Type ?? string.Empty) + "|" + (item.Target ?? string.Empty));
+            var key = Hash("v2|" + size + "|" + (item.Type ?? string.Empty) + "|" + (item.Target ?? string.Empty));
             var cachePath = Path.Combine(_cacheDirectory, key + ".png");
             if (File.Exists(cachePath))
             {
                 return LoadBitmap(cachePath);
             }
 
-            var icon = ExtractIcon(item);
+            var icon = ExtractIcon(item, size);
             if (icon != null)
             {
                 try
@@ -57,14 +57,14 @@ namespace TidyDock
 
         public ImageSource GetPathIcon(string path, bool isDirectory, int size)
         {
-            var key = Hash((isDirectory ? "folder" : "file") + "|" + path);
+            var key = Hash("v2|" + size + "|" + (isDirectory ? "folder" : "file") + "|" + path);
             var cachePath = Path.Combine(_cacheDirectory, key + ".png");
             if (File.Exists(cachePath))
             {
                 return LoadBitmap(cachePath);
             }
 
-            var icon = ExtractShellIcon(path, isDirectory);
+            var icon = ExtractShellIcon(path, isDirectory, size);
             if (icon != null)
             {
                 try
@@ -80,23 +80,29 @@ namespace TidyDock
             return CreateFallbackIcon(isDirectory ? "folder" : "file", size);
         }
 
-        private ImageSource ExtractIcon(DockItem item)
+        private ImageSource ExtractIcon(DockItem item, int size)
         {
             if (item.Type == "url")
             {
-                return CreateFallbackIcon("url", 52);
+                return CreateFallbackIcon("url", size);
             }
 
             if (item.Type == "settings")
             {
-                return CreateFallbackIcon("settings", 52);
+                return CreateFallbackIcon("settings", size);
             }
 
-            return ExtractShellIcon(item.Target, item.Type == "folder");
+            return ExtractShellIcon(item.Target, item.Type == "folder", size);
         }
 
-        private ImageSource ExtractShellIcon(string path, bool isDirectory)
+        private ImageSource ExtractShellIcon(string path, bool isDirectory, int requestedSize)
         {
+            var imageListIcon = ExtractImageListIcon(path, isDirectory, requestedSize);
+            if (imageListIcon != null)
+            {
+                return imageListIcon;
+            }
+
             try
             {
                 SHFILEINFO shinfo = new SHFILEINFO();
@@ -123,7 +129,7 @@ namespace TidyDock
                 var source = Imaging.CreateBitmapSourceFromHIcon(
                     shinfo.hIcon,
                     Int32Rect.Empty,
-                    BitmapSizeOptions.FromWidthAndHeight(64, 64));
+                    BitmapSizeOptions.FromEmptyOptions());
                 DestroyIcon(shinfo.hIcon);
                 source.Freeze();
                 return source;
@@ -131,6 +137,77 @@ namespace TidyDock
             catch
             {
                 return null;
+            }
+        }
+
+        private ImageSource ExtractImageListIcon(string path, bool isDirectory, int requestedSize)
+        {
+            try
+            {
+                SHFILEINFO shinfo = new SHFILEINFO();
+                uint flags = SHGFI_SYSICONINDEX;
+                uint attributes = 0;
+
+                if (isDirectory)
+                {
+                    attributes = FILE_ATTRIBUTE_DIRECTORY;
+                    flags = flags | SHGFI_USEFILEATTRIBUTES;
+                }
+                else if (!File.Exists(path))
+                {
+                    flags = flags | SHGFI_USEFILEATTRIBUTES;
+                }
+
+                var result = SHGetFileInfo(path, attributes, ref shinfo, (uint)Marshal.SizeOf(typeof(SHFILEINFO)), flags);
+                if (result == IntPtr.Zero || shinfo.iIcon < 0)
+                {
+                    return null;
+                }
+
+                var imageListSize = requestedSize >= 64 ? SHIL_JUMBO : SHIL_EXTRALARGE;
+                var icon = GetImageListIcon(shinfo.iIcon, imageListSize);
+                if (icon == null && imageListSize == SHIL_JUMBO)
+                {
+                    icon = GetImageListIcon(shinfo.iIcon, SHIL_EXTRALARGE);
+                }
+
+                return icon;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private ImageSource GetImageListIcon(int iconIndex, int imageListSize)
+        {
+            IImageList imageList;
+            var iid = new Guid("46EB5926-582E-4017-9FDF-E8998DAA0950");
+            var hr = SHGetImageList(imageListSize, ref iid, out imageList);
+            if (hr != 0 || imageList == null)
+            {
+                return null;
+            }
+
+            IntPtr hIcon;
+            hr = imageList.GetIcon(iconIndex, ILD_TRANSPARENT, out hIcon);
+            if (hr != 0 || hIcon == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            try
+            {
+                var source = Imaging.CreateBitmapSourceFromHIcon(
+                    hIcon,
+                    Int32Rect.Empty,
+                    BitmapSizeOptions.FromEmptyOptions());
+                source.Freeze();
+                return source;
+            }
+            finally
+            {
+                DestroyIcon(hIcon);
             }
         }
 
@@ -227,13 +304,20 @@ namespace TidyDock
         [DllImport("Shell32.dll", CharSet = CharSet.Auto)]
         private static extern IntPtr SHGetFileInfo(string pszPath, uint dwFileAttributes, ref SHFILEINFO psfi, uint cbFileInfo, uint uFlags);
 
+        [DllImport("Shell32.dll", EntryPoint = "#727")]
+        private static extern int SHGetImageList(int iImageList, ref Guid riid, out IImageList ppv);
+
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool DestroyIcon(IntPtr hIcon);
 
         private const uint SHGFI_ICON = 0x000000100;
         private const uint SHGFI_LARGEICON = 0x000000000;
         private const uint SHGFI_USEFILEATTRIBUTES = 0x000000010;
+        private const uint SHGFI_SYSICONINDEX = 0x000004000;
         private const uint FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+        private const int SHIL_EXTRALARGE = 2;
+        private const int SHIL_JUMBO = 4;
+        private const int ILD_TRANSPARENT = 1;
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         private struct SHFILEINFO
@@ -245,6 +329,36 @@ namespace TidyDock
             public string szDisplayName;
             [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
             public string szTypeName;
+        }
+
+        [ComImport]
+        [Guid("46EB5926-582E-4017-9FDF-E8998DAA0950")]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IImageList
+        {
+            [PreserveSig]
+            int Add(IntPtr hbmImage, IntPtr hbmMask, ref int pi);
+
+            [PreserveSig]
+            int ReplaceIcon(int i, IntPtr hicon, ref int pi);
+
+            [PreserveSig]
+            int SetOverlayImage(int iImage, int iOverlay);
+
+            [PreserveSig]
+            int Replace(int i, IntPtr hbmImage, IntPtr hbmMask);
+
+            [PreserveSig]
+            int AddMasked(IntPtr hbmImage, int crMask, ref int pi);
+
+            [PreserveSig]
+            int Draw(IntPtr pimldp);
+
+            [PreserveSig]
+            int Remove(int i);
+
+            [PreserveSig]
+            int GetIcon(int i, int flags, out IntPtr picon);
         }
     }
 }
