@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
@@ -739,6 +740,10 @@ namespace TidyDock
                 var item = _pressedItem;
                 var button = sender as Button;
                 _pressedItem = null;
+                if (item == null)
+                {
+                    return;
+                }
                 StartDockDrag(button, item);
                 try
                 {
@@ -753,6 +758,11 @@ namespace TidyDock
 
         private void StartDockDrag(Button sourceButton, DockItem item)
         {
+            if (item == null)
+            {
+                return;
+            }
+
             _dragSourceButton = sourceButton;
             if (_dragSourceButton != null)
             {
@@ -812,7 +822,25 @@ namespace TidyDock
             _dragGhostWindow.Height = size;
             _dragGhostWindow.Opacity = 0.84;
             _dragGhostWindow.Content = border;
+            _dragGhostWindow.SourceInitialized += delegate { MakeDragGhostClickThrough(_dragGhostWindow); };
             _dragGhostWindow.Show();
+        }
+
+        private void MakeDragGhostClickThrough(Window window)
+        {
+            if (window == null)
+            {
+                return;
+            }
+
+            var handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var style = GetWindowLong(handle, GWL_EXSTYLE);
+            SetWindowLong(handle, GWL_EXSTYLE, style | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
         }
 
         private void OnDockGiveFeedback(object sender, GiveFeedbackEventArgs e)
@@ -1183,6 +1211,17 @@ namespace TidyDock
 
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT point);
+
+        [DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_TRANSPARENT = 0x00000020;
+        private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const int WS_EX_NOACTIVATE = 0x08000000;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct POINT
