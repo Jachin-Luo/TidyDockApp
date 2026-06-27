@@ -9,6 +9,7 @@ $distRoot = Join-Path $projectRoot "dist"
 $portableRoot = Join-Path $distRoot "TidyDock-portable"
 $setupPath = Join-Path $distRoot "TidyDockSetup.exe"
 $sourcePath = Join-Path $projectRoot "installer\TidyDockSetup.cs"
+$manifestPath = Join-Path $projectRoot "installer\TidyDockSetup.manifest"
 $iconPath = Join-Path $projectRoot "assets\TidyDock.ico"
 $buildPortable = Join-Path $PSScriptRoot "Build-Portable.ps1"
 $csc = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
@@ -19,6 +20,10 @@ if (-not (Test-Path $csc)) {
 
 if (-not (Test-Path $sourcePath)) {
     throw "Installer source not found: $sourcePath"
+}
+
+if (-not (Test-Path $manifestPath)) {
+    throw "Installer manifest not found: $manifestPath"
 }
 
 & powershell -ExecutionPolicy Bypass -File $buildPortable -Configuration $Configuration
@@ -49,6 +54,7 @@ $args = @(
     "/optimize+",
     "/out:$setupPath",
     "/win32icon:$iconPath",
+    "/win32manifest:$manifestPath",
     "/reference:System.Windows.Forms.dll",
     "/reference:System.Drawing.dll",
     "/resource:$payloadExe,payload.TidyDock.exe",

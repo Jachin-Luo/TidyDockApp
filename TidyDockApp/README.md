@@ -113,6 +113,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Custom application/tray icon
 - Portable release script and zip output
 - Single-file current-user installer: `TidyDockSetup.exe`
+- Installer manifest declares current-user `asInvoker` execution to avoid Windows Program Compatibility Assistant false positives
 - Current-user install/uninstall scripts
 - Portable verification script
 

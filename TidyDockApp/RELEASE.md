@@ -38,6 +38,7 @@ Included:
 - Custom application and tray icon
 - Portable build script
 - Single-file current-user installer: `TidyDockSetup.exe`
+- Installer manifest declares current-user `asInvoker` execution to avoid Windows Program Compatibility Assistant false positives
 - Current-user install/uninstall scripts
 - Portable verification script
 - Single-instance guard
