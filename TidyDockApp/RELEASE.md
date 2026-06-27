@@ -33,6 +33,7 @@ Included:
 - Display selection
 - Startup visibility setting
 - Always-on-top is off by default
+- Dock restores itself after Windows Show Desktop minimizes it
 - Tray icon visibility setting
 - Language setting for core UI text, folder panel messages, and main dialogs
 - Localized input dialog OK and Cancel buttons

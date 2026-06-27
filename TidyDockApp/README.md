@@ -96,6 +96,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Settings: display, position, icon size, gap, opacity, corner radius, magnification, auto-hide, always-on-top, startup, folder panel limits
 - Startup visibility setting: choose whether the Dock is shown immediately on launch
 - Always-on-top is off by default to avoid covering other applications
+- Dock restores itself after Windows Show Desktop minimizes it
 - Tray icon visibility setting with a safety guard
 - Language setting for core UI text, folder panel messages, and main dialogs: `zh-CN` and `en-US`
 - Input dialogs use the selected language for OK and Cancel buttons

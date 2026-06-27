@@ -108,6 +108,7 @@ namespace TidyDock
             DragOver += OnDockDragOver;
             Drop += OnDockDrop;
             PreviewKeyDown += OnPreviewKeyDown;
+            StateChanged += OnWindowStateChanged;
         }
 
         public void ShowSettings()
@@ -202,6 +203,29 @@ namespace TidyDock
                 TrayVisibilitySetter(visible);
             }
             SaveConfig();
+        }
+
+        private void OnWindowStateChanged(object sender, EventArgs e)
+        {
+            if (WindowState != WindowState.Minimized)
+            {
+                return;
+            }
+
+            Dispatcher.BeginInvoke(new Action(delegate
+            {
+                if (WindowState != WindowState.Minimized)
+                {
+                    return;
+                }
+
+                WindowState = WindowState.Normal;
+                if (!IsVisible)
+                {
+                    Show();
+                }
+                PositionWindow();
+            }), DispatcherPriority.Background);
         }
 
         public void ApplySettings()
