@@ -16,6 +16,7 @@ namespace TidyDock
     {
         private readonly Popup _popup;
         private readonly Border _border;
+        private readonly Border _headerShell;
         private readonly DockPanel _header;
         private readonly TextBlock _title;
         private readonly ScrollViewer _scroll;
@@ -57,13 +58,17 @@ namespace TidyDock
             var root = new DockPanel();
             _border.Child = root;
 
-            _header = new DockPanel();
-            _header.Height = 38;
-            _header.LastChildFill = true;
-            DockPanel.SetDock(_header, Dock.Top);
-            root.Children.Add(_header);
+            _headerShell = new Border();
+            _headerShell.Height = 38;
+            _headerShell.CornerRadius = new CornerRadius(22, 22, 0, 0);
+            DockPanel.SetDock(_headerShell, Dock.Top);
+            root.Children.Add(_headerShell);
 
-            _backButton = MakeHeaderButton("<");
+            _header = new DockPanel();
+            _header.LastChildFill = true;
+            _headerShell.Child = _header;
+
+            _backButton = MakeHeaderButton("‹");
             _backButton.ToolTip = T("back");
             _backButton.Click += delegate { GoBack(); };
             DockPanel.SetDock(_backButton, Dock.Left);
@@ -74,12 +79,12 @@ namespace TidyDock
             DockPanel.SetDock(rightButtons, Dock.Right);
             _header.Children.Add(rightButtons);
 
-            _explorerButton = MakeHeaderButton("...");
+            _explorerButton = MakeHeaderButton("↗");
             _explorerButton.ToolTip = T("openInExplorer");
             _explorerButton.Click += delegate { OpenInExplorer(); };
             rightButtons.Children.Add(_explorerButton);
 
-            _closeButton = MakeHeaderButton("x");
+            _closeButton = MakeHeaderButton("×");
             _closeButton.ToolTip = T("close");
             _closeButton.Click += delegate { Close(); };
             rightButtons.Children.Add(_closeButton);
@@ -93,7 +98,7 @@ namespace TidyDock
             _header.Children.Add(_title);
 
             _scroll = new ScrollViewer();
-            _scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            _scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Hidden;
             _scroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
             _scroll.Padding = new Thickness(8, 7, 8, 8);
             root.Children.Add(_scroll);
@@ -127,7 +132,8 @@ namespace TidyDock
             _scroll.MaxHeight = Math.Max(160, _config.FolderPanel.MaxHeight - 38);
             _border.BorderBrush = ThemeService.Brush(_palette.PanelBorder, 0.46);
             _border.Background = ThemeService.Brush(_palette.PanelBackground, 0.66);
-            _header.Background = ThemeService.Brush(_palette.PanelHeader, _palette.IsDark ? 0.34 : 0.22);
+            _headerShell.Background = ThemeService.Brush(_palette.PanelHeader, _palette.IsDark ? 0.34 : 0.22);
+            _header.Background = Brushes.Transparent;
             _title.Foreground = ThemeService.Brush(_palette.Text);
             _backButton.ToolTip = T("back");
             _explorerButton.ToolTip = T("openInExplorer");
@@ -324,8 +330,8 @@ namespace TidyDock
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
             var image = new Image();
-            image.Width = 18;
-            image.Height = 18;
+            image.Width = 20;
+            image.Height = 20;
             image.Stretch = Stretch.Uniform;
             image.VerticalAlignment = VerticalAlignment.Center;
             image.Margin = new Thickness(0, 0, 6, 0);
