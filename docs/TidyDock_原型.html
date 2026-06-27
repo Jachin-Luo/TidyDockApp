@@ -10,8 +10,8 @@
       --dock-gap: 10px;
       --dock-opacity: 0.78;
       --dock-radius: 22px;
-      --panel-bg: rgba(248, 250, 252, 0.82);
-      --panel-border: rgba(255, 255, 255, 0.58);
+      --panel-bg: rgba(248, 250, 252, 0.66);
+      --panel-border: rgba(255, 255, 255, 0.46);
       --ink: #172033;
       --muted: #5b6474;
       --blue: #3f7fe8;
@@ -237,15 +237,15 @@
       position: absolute;
       left: 50%;
       bottom: 116px;
-      width: min(468px, calc(100vw - 28px));
+      width: min(234px, calc(100vw - 28px));
       max-height: min(440px, calc(100vh - 150px));
       transform: translateX(-50%) translateY(8px) scale(0.98);
       transform-origin: bottom center;
       border: 1px solid var(--panel-border);
-      border-radius: 8px;
+      border-radius: 22px;
       background: var(--panel-bg);
-      box-shadow: 0 24px 70px rgba(31, 41, 55, 0.32);
-      backdrop-filter: blur(26px) saturate(1.3);
+      box-shadow: 0 18px 46px rgba(31, 41, 55, 0.22);
+      backdrop-filter: blur(24px) saturate(1.2);
       opacity: 0;
       pointer-events: none;
       z-index: 20;
@@ -262,21 +262,21 @@
     .panel-head {
       display: flex;
       align-items: center;
-      gap: 8px;
-      height: 42px;
-      padding: 0 10px;
-      border-bottom: 1px solid rgba(125, 139, 160, 0.22);
-      background: rgba(255, 255, 255, 0.32);
+      gap: 6px;
+      height: 38px;
+      padding: 0 8px;
+      border-bottom: 1px solid rgba(125, 139, 160, 0.16);
+      background: rgba(255, 255, 255, 0.22);
     }
 
     .icon-button {
-      width: 28px;
-      height: 28px;
+      width: 26px;
+      height: 26px;
       border: 0;
-      border-radius: 7px;
+      border-radius: 50%;
       display: grid;
       place-items: center;
-      background: rgba(255, 255, 255, 0.52);
+      background: rgba(255, 255, 255, 0.34);
       color: #263246;
       cursor: default;
     }
@@ -293,7 +293,7 @@
     .panel-title {
       min-width: 0;
       flex: 1;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -301,11 +301,10 @@
     }
 
     .panel-grid {
-      max-height: calc(min(440px, calc(100vh - 150px)) - 42px);
-      padding: 14px;
+      max-height: calc(min(440px, calc(100vh - 150px)) - 38px);
+      padding: 8px;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-      gap: 12px 10px;
+      gap: 3px;
       overflow-y: auto;
       overscroll-behavior: contain;
     }
@@ -323,47 +322,69 @@
 
     .file-tile {
       min-width: 0;
-      height: 86px;
+      height: 32px;
       border: 0;
-      border-radius: 8px;
-      background: rgba(255, 255, 255, 0.38);
+      border-radius: 16px;
+      background: transparent;
       display: grid;
-      justify-items: center;
-      align-content: center;
+      grid-template-columns: 24px minmax(0, 1fr);
+      align-items: center;
       gap: 7px;
+      padding: 0 8px 0 7px;
       color: #263246;
       cursor: default;
     }
 
     .file-tile:hover,
     .file-tile:focus-visible {
-      background: rgba(255, 255, 255, 0.72);
+      background: rgba(255, 255, 255, 0.46);
       outline: none;
     }
 
     .tile-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 8px;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
       display: grid;
       place-items: center;
       color: white;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 8px 14px rgba(31, 41, 55, 0.14);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 4px 8px rgba(31, 41, 55, 0.12);
     }
 
     .tile-icon svg {
-      width: 20px;
-      height: 20px;
+      width: 13px;
+      height: 13px;
     }
 
     .file-tile span {
       width: 100%;
-      padding: 0 6px;
+      padding: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: 12px;
-      text-align: center;
+      text-align: left;
+    }
+
+    .dock-item.dragging {
+      opacity: 0.24;
+    }
+
+    .drag-ghost {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: var(--dock-size);
+      height: var(--dock-size);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.84;
+      filter: drop-shadow(0 16px 24px rgba(31, 41, 55, 0.28));
+    }
+
+    .drag-ghost .dock-label {
+      display: none;
     }
 
     .settings {
@@ -577,7 +598,7 @@
       </div>
     </aside>
 
-    <section class="folder-panel" id="folderPanel" aria-label="文件夹内容">
+    <section class="folder-panel open" id="folderPanel" aria-label="文件夹内容">
       <div class="panel-head">
         <button class="icon-button" id="backButton" title="返回上一级" aria-label="返回上一级" data-icon="arrow-left"></button>
         <div class="panel-title" id="panelTitle">Projects</div>
@@ -645,6 +666,8 @@
         ['folder', 'Assets'],
         ['folder', 'Builds'],
         ['file', 'README.md'],
+        ['file', 'TidyDock.lnk'],
+        ['file', 'Visual Studio Code.lnk'],
         ['code', 'DockShell.cs'],
         ['code', 'IconCache.cs'],
         ['pdf', '需求文档.pdf'],
@@ -665,6 +688,7 @@
         ['folder', 'Screenshots'],
         ['pdf', 'Invoice.pdf'],
         ['file', 'notes.txt'],
+        ['file', 'TidyDockSetup.lnk'],
         ['image', 'mockup.png'],
         ['file', 'archive.zip'],
         ['code', 'sample.json'],
@@ -701,6 +725,11 @@
     const folderHistory = [];
     let currentFolder = 'Projects';
     let draggedItem = null;
+    let dragGhost = null;
+
+    function displayName(label) {
+      return label.replace(/\.lnk$/i, '');
+    }
 
     document.querySelectorAll('[data-icon]').forEach((node) => {
       const key = iconNameMap[node.dataset.icon] || node.dataset.icon;
@@ -729,18 +758,40 @@
         icon.className = `tile-icon ${type === 'folder' ? 'bg-green' : type === 'image' ? 'bg-teal' : type === 'code' ? 'bg-violet' : type === 'pdf' ? 'bg-red' : 'bg-slate'}`;
         icon.innerHTML = icons[type] || icons.file;
         const text = document.createElement('span');
-        text.textContent = label;
+        text.textContent = displayName(label);
+        text.title = label;
         tile.append(icon, text);
         tile.addEventListener('click', () => {
           if (type === 'folder') {
             folderHistory.push(currentFolder);
             renderFolder(label);
           } else {
-            showToast(`打开 ${label}`);
+            showToast(`打开 ${displayName(label)}`);
           }
         });
         panelGrid.appendChild(tile);
       });
+    }
+
+    function setDragGhostPosition(event) {
+      if (!dragGhost || !event.clientX || !event.clientY) return;
+      dragGhost.style.left = `${event.clientX}px`;
+      dragGhost.style.top = `${event.clientY}px`;
+    }
+
+    function createDragGhost(item, event) {
+      dragGhost = item.cloneNode(true);
+      dragGhost.classList.add('drag-ghost');
+      dragGhost.removeAttribute('draggable');
+      document.body.appendChild(dragGhost);
+      setDragGhostPosition(event);
+    }
+
+    function removeDragGhost() {
+      if (dragGhost) {
+        dragGhost.remove();
+        dragGhost = null;
+      }
     }
 
     function openFolder(name) {
@@ -795,11 +846,18 @@
       const item = event.target.closest('.dock-item');
       if (!item) return;
       draggedItem = item;
+      item.classList.add('dragging');
+      createDragGhost(item, event);
+      const transparent = document.createElement('canvas');
+      transparent.width = 1;
+      transparent.height = 1;
+      event.dataTransfer.setDragImage(transparent, 0, 0);
       event.dataTransfer.effectAllowed = 'move';
     });
 
     dock.addEventListener('dragover', (event) => {
       event.preventDefault();
+      setDragGhostPosition(event);
       const target = event.target.closest('.dock-item');
       if (!draggedItem || !target || draggedItem === target) return;
       const rect = target.getBoundingClientRect();
@@ -807,7 +865,13 @@
       dock.insertBefore(draggedItem, before ? target : target.nextSibling);
     });
 
+    dock.addEventListener('drag', setDragGhostPosition);
+
     dock.addEventListener('dragend', () => {
+      if (draggedItem) {
+        draggedItem.classList.remove('dragging');
+      }
+      removeDragGhost();
       draggedItem = null;
       showToast('顺序已保存');
     });
