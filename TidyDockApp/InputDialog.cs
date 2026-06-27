@@ -7,9 +7,16 @@ namespace TidyDock
     public class InputDialog : Window
     {
         private readonly TextBox _textBox;
+        private readonly DockConfig _config;
 
         public InputDialog(string title, string label, string value)
+            : this(null, title, label, value)
         {
+        }
+
+        public InputDialog(DockConfig config, string title, string label, string value)
+        {
+            _config = config;
             Title = title;
             Width = 360;
             Height = 150;
@@ -45,7 +52,7 @@ namespace TidyDock
             root.Children.Add(buttons);
 
             var cancel = new Button();
-            cancel.Content = "取消";
+            cancel.Content = T("cancel");
             cancel.Width = 72;
             cancel.Height = 28;
             cancel.Margin = new Thickness(0, 0, 8, 0);
@@ -53,7 +60,7 @@ namespace TidyDock
             buttons.Children.Add(cancel);
 
             var ok = new Button();
-            ok.Content = "确定";
+            ok.Content = T("ok");
             ok.Width = 72;
             ok.Height = 28;
             ok.Click += delegate { DialogResult = true; };
@@ -69,6 +76,11 @@ namespace TidyDock
         public string Value
         {
             get { return _textBox.Text; }
+        }
+
+        private string T(string key)
+        {
+            return LocalizationService.T(_config, key);
         }
     }
 }

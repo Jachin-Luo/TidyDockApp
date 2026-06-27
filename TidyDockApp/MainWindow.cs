@@ -23,6 +23,7 @@ namespace TidyDock
         private readonly StackPanel _itemsPanel;
         private FolderPanel _folderPanel;
         private readonly DispatcherTimer _hideTimer;
+        private readonly DispatcherTimer _saveTimer;
         private ThemePalette _palette;
         private Window _hotZone;
         private DockItem _pressedItem;
@@ -86,6 +87,15 @@ namespace TidyDock
             };
 
             MouseEnter += delegate { _hideTimer.Stop(); };
+
+            _saveTimer = new DispatcherTimer();
+            _saveTimer.Interval = TimeSpan.FromMilliseconds(450);
+            _saveTimer.Tick += delegate
+            {
+                _saveTimer.Stop();
+                _settingsService.Save(_config);
+            };
+
             Loaded += delegate
             {
                 RenderDock();
@@ -113,6 +123,10 @@ namespace TidyDock
 
         public void SaveConfig()
         {
+            if (_saveTimer != null)
+            {
+                _saveTimer.Stop();
+            }
             _settingsService.Save(_config);
         }
 
@@ -235,7 +249,13 @@ namespace TidyDock
             UpdateLayout();
             PositionWindow();
             UpdateHotZone();
-            SaveConfig();
+            ScheduleSaveConfig();
+        }
+
+        private void ScheduleSaveConfig()
+        {
+            _saveTimer.Stop();
+            _saveTimer.Start();
         }
 
         private Thickness GetDockPadding()
@@ -498,7 +518,7 @@ namespace TidyDock
                 return;
             }
 
-            var dialog = new InputDialog(T("rename"), T("name"), item.Name);
+            var dialog = new InputDialog(_config, T("rename"), T("name"), item.Name);
             dialog.Owner = this;
             if (dialog.ShowDialog() == true)
             {
@@ -515,7 +535,7 @@ namespace TidyDock
                 return;
             }
 
-            var dialog = new InputDialog(T("editTarget"), T("targetPathOrUrl"), item.Target);
+            var dialog = new InputDialog(_config, T("editTarget"), T("targetPathOrUrl"), item.Target);
             dialog.Owner = this;
             if (dialog.ShowDialog() == true)
             {
@@ -583,7 +603,7 @@ namespace TidyDock
                 return;
             }
 
-            var dialog = new InputDialog(T("addUrl"), "URL", "https://");
+            var dialog = new InputDialog(_config, T("addUrl"), "URL", "https://");
             dialog.Owner = this;
             if (dialog.ShowDialog() == true)
             {
@@ -592,7 +612,7 @@ namespace TidyDock
                 {
                     return;
                 }
-                var nameDialog = new InputDialog(T("addUrl"), T("name"), url);
+                var nameDialog = new InputDialog(_config, T("addUrl"), T("name"), url);
                 nameDialog.Owner = this;
                 if (nameDialog.ShowDialog() == true)
                 {

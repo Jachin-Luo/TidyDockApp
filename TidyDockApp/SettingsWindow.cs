@@ -392,14 +392,14 @@ namespace TidyDock
                 return;
             }
 
-            var urlDialog = new InputDialog(T("addUrl"), "URL", "https://");
+            var urlDialog = new InputDialog(_config, T("addUrl"), "URL", "https://");
             urlDialog.Owner = this;
             if (urlDialog.ShowDialog() != true)
             {
                 return;
             }
 
-            var nameDialog = new InputDialog(T("addUrl"), T("name"), urlDialog.Value);
+            var nameDialog = new InputDialog(_config, T("addUrl"), T("name"), urlDialog.Value);
             nameDialog.Owner = this;
             if (nameDialog.ShowDialog() == true)
             {
@@ -475,7 +475,7 @@ namespace TidyDock
                 return;
             }
 
-            var dialog = new InputDialog(T("rename"), T("name"), item.Name);
+            var dialog = new InputDialog(_config, T("rename"), T("name"), item.Name);
             dialog.Owner = this;
             if (dialog.ShowDialog() == true)
             {
@@ -497,7 +497,7 @@ namespace TidyDock
                 return;
             }
 
-            var dialog = new InputDialog(T("editTarget"), T("targetPathOrUrl"), item.Target);
+            var dialog = new InputDialog(_config, T("editTarget"), T("targetPathOrUrl"), item.Target);
             dialog.Owner = this;
             if (dialog.ShowDialog() == true)
             {

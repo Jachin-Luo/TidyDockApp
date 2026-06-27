@@ -10,6 +10,8 @@ namespace TidyDock
             if (key == "settings") return en ? "Settings" : "\u8bbe\u7f6e";
             if (key == "about") return en ? "About" : "\u5173\u4e8e";
             if (key == "close") return en ? "Close" : "\u5173\u95ed";
+            if (key == "cancel") return en ? "Cancel" : "\u53d6\u6d88";
+            if (key == "ok") return en ? "OK" : "\u786e\u5b9a";
             if (key == "open") return en ? "Open" : "\u6253\u5f00";
             if (key == "rename") return en ? "Rename" : "\u7f16\u8f91\u540d\u79f0";
             if (key == "editTarget") return en ? "Edit target" : "\u7f16\u8f91\u76ee\u6807";

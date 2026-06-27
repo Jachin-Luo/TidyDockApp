@@ -18,7 +18,7 @@ namespace TidyDock
         private void Application_Startup(object sender, StartupEventArgs e)
         {
             bool createdNew;
-            _singleInstanceMutex = new Mutex(true, "TidyDock.SingleInstance.40799", out createdNew);
+            _singleInstanceMutex = new Mutex(true, @"Local\TidyDock.{83B8BC34-3B76-4E99-99D6-6D4F8D414B52}", out createdNew);
             if (!createdNew)
             {
                 Shutdown();
@@ -54,6 +54,12 @@ namespace TidyDock
 
         private void Application_Exit(object sender, ExitEventArgs e)
         {
+            var window = MainWindow as MainWindow;
+            if (window != null)
+            {
+                window.SaveConfig();
+            }
+
             if (_trayService != null)
             {
                 _trayService.Dispose();

@@ -19,6 +19,7 @@ Included:
 - Optional Dock item name labels
 - Folder stack panel with lazy directory read
 - Folder panel rows show compact file/folder icons
+- Folder panel guards against stale async reads while switching folders quickly
 - Folder navigation, back, Explorer open, and pointer-leave auto-hide
 - Esc closes folder panel and settings window
 - Local JSON configuration
@@ -31,6 +32,7 @@ Included:
 - Always-on-top is off by default
 - Tray icon visibility setting
 - Language setting for core UI text, folder panel messages, and main dialogs
+- Localized input dialog OK and Cancel buttons
 - Change Dock item icon from settings in edit mode
 - Settings maintenance actions: open config folder, open log folder, clear icon cache, reset config, exit app
 - Custom application and tray icon
@@ -39,6 +41,9 @@ Included:
 - Current-user install/uninstall scripts
 - Portable verification script
 - Single-instance guard
+- Stable product-level single-instance mutex name
+- Backup-assisted atomic config save with `.bak`
+- Debounced settings saves during frequent UI changes
 - Startup idle working-set trim for lower resident memory
 - Local error log for unexpected exceptions
 

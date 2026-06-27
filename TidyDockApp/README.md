@@ -82,6 +82,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Open apps, files, and URLs
 - Open folder items as an on-demand scrollable folder panel
 - Folder panel rows show compact file/folder icons
+- Folder panel ignores stale async directory reads when users switch folders quickly
 - Folder panel navigation: enter folder, go back, open in Explorer, auto-hide after pointer leaves
 - `Esc` closes the folder panel and settings window
 - Folder panel direction follows Dock position
@@ -94,12 +95,16 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Always-on-top is off by default to avoid covering other applications
 - Tray icon visibility setting with a safety guard
 - Language setting for core UI text, folder panel messages, and main dialogs: `zh-CN` and `en-US`
+- Input dialogs use the selected language for OK and Cancel buttons
 - Theme setting: system, light, dark
 - Dock item manager in settings
 - Change Dock item icon from settings in edit mode
 - Maintenance actions: open config folder, open log folder, clear icon cache, reset config, exit app
 - Tray menu: show/hide, settings, about, exit
 - Single-instance guard to prevent duplicate Dock processes
+- Stable product-level single-instance mutex name
+- Backup-assisted config replacement using a temporary file and `.bak` copy
+- Debounced settings saves to reduce repeated disk writes during slider changes
 - Startup idle working-set trim for lower resident memory
 - Local error log for unexpected exceptions
 - Local JSON config
@@ -142,6 +147,16 @@ Error log:
 - No process monitoring
 - No background indexing
 - No network behavior
+
+## Pre-Release Checklist
+
+- Run a Release installer build: `scripts\Build-Installer.ps1`
+- Verify the portable package: `scripts\Test-Portable.ps1 -SkipLaunch`
+- Smoke test install and uninstall with the current-user installer
+- Confirm only one TidyDock process can run at once
+- Confirm config recovery leaves `settings.json.bak` after an overwrite
+- Test Dock positioning on the target display setup
+- Scan README and release notes for mojibake or broken links
 
 ## Remaining Polish
 

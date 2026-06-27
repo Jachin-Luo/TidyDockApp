@@ -67,19 +67,41 @@ namespace TidyDock
         {
             EnsureDirectories();
             var tempPath = ConfigPath + ".tmp";
+            var backupPath = ConfigPath + ".bak";
 
             using (var stream = File.Create(tempPath))
             {
                 var serializer = new DataContractJsonSerializer(typeof(DockConfig));
                 serializer.WriteObject(stream, Normalize(config));
+                stream.Flush(true);
             }
 
             if (File.Exists(ConfigPath))
             {
-                File.Delete(ConfigPath);
+                ReplaceConfig(tempPath, backupPath);
+                return;
             }
 
             File.Move(tempPath, ConfigPath);
+        }
+
+        private void ReplaceConfig(string tempPath, string backupPath)
+        {
+            try
+            {
+                if (File.Exists(backupPath))
+                {
+                    File.Delete(backupPath);
+                }
+
+                File.Replace(tempPath, ConfigPath, backupPath, true);
+            }
+            catch
+            {
+                File.Copy(ConfigPath, backupPath, true);
+                File.Delete(ConfigPath);
+                File.Move(tempPath, ConfigPath);
+            }
         }
 
         public void EnsureDirectories()

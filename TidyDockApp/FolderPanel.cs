@@ -29,6 +29,7 @@ namespace TidyDock
         private readonly Stack<string> _history;
         private ThemePalette _palette;
         private string _currentPath;
+        private int _loadVersion;
 
         public FolderPanel(Window owner, IconCacheService iconCache, DockConfig config)
         {
@@ -167,6 +168,7 @@ namespace TidyDock
 
         public void Close()
         {
+            _loadVersion++;
             _popup.IsOpen = false;
             _itemsPanel.Children.Clear();
             _history.Clear();
@@ -197,6 +199,7 @@ namespace TidyDock
 
         private async void Load(string path)
         {
+            var loadVersion = ++_loadVersion;
             _currentPath = path;
             _title.Text = Path.GetFileName(path);
             if (string.IsNullOrEmpty(_title.Text))
@@ -208,6 +211,11 @@ namespace TidyDock
             _itemsPanel.Children.Add(MakeStatus(T("loading")));
 
             var result = await Task.Run(delegate { return ReadEntries(path); });
+            if (loadVersion != _loadVersion || !_popup.IsOpen || _currentPath != path)
+            {
+                return;
+            }
+
             _itemsPanel.Children.Clear();
 
             if (result.Error != null)
