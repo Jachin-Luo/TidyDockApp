@@ -1,0 +1,23 @@
+# Build outputs
+bin/
+obj/
+dist/
+TidyDockApp/bin/
+TidyDockApp/obj/
+TidyDockApp/dist/
+
+# Visual Studio / MSBuild local state
+.vs/
+*.user
+*.suo
+*.cache
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.broken-*
+
+# OS files
+Thumbs.db
+Desktop.ini
