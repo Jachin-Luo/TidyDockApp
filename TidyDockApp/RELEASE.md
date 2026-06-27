@@ -12,13 +12,16 @@ Included:
 - Edit mode gates Dock item editing
 - Drag to add items in edit mode
 - Drag to reorder Dock items in edit mode
+- Cursor-centered Dock drag preview for clearer item repositioning
 - Hover magnification
 - Borderless Dock surface with no icon hover background
 - High-resolution Windows system icon extraction for sharper Dock icons
 - Dock background opacity can be set to 0 for a fully transparent Dock surface
 - Optional Dock item name labels
 - Folder stack panel with lazy directory read
+- Compact rounded folder panel layout with a lighter translucent surface
 - Folder panel rows show compact file/folder icons
+- Folder panel hides `.lnk` suffixes in display names
 - Folder panel guards against stale async reads while switching folders quickly
 - Folder navigation, back, Explorer open, and pointer-leave auto-hide
 - Esc closes folder panel and settings window

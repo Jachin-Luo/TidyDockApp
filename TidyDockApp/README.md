@@ -74,6 +74,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Edit mode gates Dock item editing
 - Drag files, folders, `.exe`, and `.lnk` files into the Dock in edit mode
 - Reorder Dock items by dragging in edit mode
+- Cursor-centered drag preview while reordering Dock items
 - Hover magnification
 - Borderless Dock surface with no icon hover background
 - High-resolution Windows system icon extraction for sharper Dock icons
@@ -81,7 +82,9 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Optional Dock item name labels
 - Open apps, files, and URLs
 - Open folder items as an on-demand scrollable folder panel
+- Folder panel uses a compact rounded list layout with a lighter translucent surface
 - Folder panel rows show compact file/folder icons
+- Folder panel hides `.lnk` suffixes in display names while keeping the real shortcut path
 - Folder panel ignores stale async directory reads when users switch folders quickly
 - Folder panel navigation: enter folder, go back, open in Explorer, auto-hide after pointer leaves
 - `Esc` closes the folder panel and settings window

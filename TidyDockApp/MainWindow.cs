@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -28,6 +29,8 @@ namespace TidyDock
         private Window _hotZone;
         private DockItem _pressedItem;
         private Point _pressPoint;
+        private Window _dragGhostWindow;
+        private Button _dragSourceButton;
         private SettingsWindow _settingsWindow;
         public Action<bool> TrayVisibilitySetter { get; set; }
         public Action TrayTextRefresher { get; set; }
@@ -375,6 +378,7 @@ namespace TidyDock
                 _pressPoint = e.GetPosition(this);
             };
             button.PreviewMouseMove += OnDockButtonMouseMove;
+            button.GiveFeedback += OnDockGiveFeedback;
             button.DragOver += OnDockDragOver;
             button.Drop += OnDockDrop;
             button.ContextMenu = CreateItemMenu(item);
@@ -708,9 +712,120 @@ namespace TidyDock
             if (Math.Abs(point.X - _pressPoint.X) > SystemParameters.MinimumHorizontalDragDistance ||
                 Math.Abs(point.Y - _pressPoint.Y) > SystemParameters.MinimumVerticalDragDistance)
             {
-                DragDrop.DoDragDrop((DependencyObject)sender, new DataObject("TidyDockItemId", _pressedItem.Id), DragDropEffects.Move);
+                var item = _pressedItem;
+                var button = sender as Button;
                 _pressedItem = null;
+                StartDockDrag(button, item);
+                try
+                {
+                    DragDrop.DoDragDrop((DependencyObject)sender, new DataObject("TidyDockItemId", item.Id), DragDropEffects.Move);
+                }
+                finally
+                {
+                    EndDockDrag();
+                }
             }
+        }
+
+        private void StartDockDrag(Button sourceButton, DockItem item)
+        {
+            _dragSourceButton = sourceButton;
+            if (_dragSourceButton != null)
+            {
+                _dragSourceButton.Opacity = 0.24;
+            }
+
+            CreateDockDragGhost(item);
+            UpdateDockDragGhost();
+        }
+
+        private void EndDockDrag()
+        {
+            if (_dragSourceButton != null)
+            {
+                _dragSourceButton.Opacity = 1.0;
+                _dragSourceButton = null;
+            }
+
+            if (_dragGhostWindow != null)
+            {
+                _dragGhostWindow.Close();
+                _dragGhostWindow = null;
+            }
+        }
+
+        private void CreateDockDragGhost(DockItem item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            var size = _config.Dock.IconSize;
+            var image = new Image();
+            image.Width = Math.Max(24, size - 8);
+            image.Height = Math.Max(24, size - 8);
+            image.Stretch = Stretch.Uniform;
+            image.Source = _iconCache.GetIcon(item, size);
+            RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+
+            var border = new Border();
+            border.Width = size;
+            border.Height = size;
+            border.Background = Brushes.Transparent;
+            border.Child = image;
+
+            _dragGhostWindow = new Window();
+            _dragGhostWindow.WindowStyle = WindowStyle.None;
+            _dragGhostWindow.AllowsTransparency = true;
+            _dragGhostWindow.Background = Brushes.Transparent;
+            _dragGhostWindow.ResizeMode = ResizeMode.NoResize;
+            _dragGhostWindow.ShowInTaskbar = false;
+            _dragGhostWindow.ShowActivated = false;
+            _dragGhostWindow.Topmost = true;
+            _dragGhostWindow.IsHitTestVisible = false;
+            _dragGhostWindow.Width = size;
+            _dragGhostWindow.Height = size;
+            _dragGhostWindow.Opacity = 0.84;
+            _dragGhostWindow.Content = border;
+            _dragGhostWindow.Show();
+        }
+
+        private void OnDockGiveFeedback(object sender, GiveFeedbackEventArgs e)
+        {
+            if (_dragGhostWindow == null)
+            {
+                return;
+            }
+
+            UpdateDockDragGhost();
+            e.UseDefaultCursors = false;
+            Mouse.SetCursor(Cursors.Hand);
+            e.Handled = true;
+        }
+
+        private void UpdateDockDragGhost()
+        {
+            if (_dragGhostWindow == null)
+            {
+                return;
+            }
+
+            POINT cursor;
+            if (!GetCursorPos(out cursor))
+            {
+                return;
+            }
+
+            var point = new Point(cursor.X, cursor.Y);
+            var source = PresentationSource.FromVisual(this);
+            if (source != null && source.CompositionTarget != null)
+            {
+                point = source.CompositionTarget.TransformFromDevice.Transform(point);
+            }
+
+            _dragGhostWindow.Left = point.X - _dragGhostWindow.Width / 2;
+            _dragGhostWindow.Top = point.Y - _dragGhostWindow.Height / 2;
         }
 
         private void OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -1040,6 +1155,16 @@ namespace TidyDock
 
             var area = selected.WorkingArea;
             return new Rect(area.Left, area.Top, area.Width, area.Height);
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT point);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct POINT
+        {
+            public int X;
+            public int Y;
         }
     }
 }

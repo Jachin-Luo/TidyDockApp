@@ -44,21 +44,21 @@ namespace TidyDock
             _popup.StaysOpen = false;
 
             _border = new Border();
-            _border.Width = 420;
-            _border.CornerRadius = new CornerRadius(8);
+            _border.Width = 234;
+            _border.CornerRadius = new CornerRadius(22);
             _border.BorderThickness = new Thickness(1);
             _border.Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
-                BlurRadius = 34,
-                ShadowDepth = 8,
-                Opacity = 0.26
+                BlurRadius = 28,
+                ShadowDepth = 7,
+                Opacity = 0.2
             };
 
             var root = new DockPanel();
             _border.Child = root;
 
             _header = new DockPanel();
-            _header.Height = 42;
+            _header.Height = 38;
             _header.LastChildFill = true;
             DockPanel.SetDock(_header, Dock.Top);
             root.Children.Add(_header);
@@ -86,16 +86,16 @@ namespace TidyDock
 
             _title = new TextBlock();
             _title.VerticalAlignment = VerticalAlignment.Center;
-            _title.FontSize = 13;
+            _title.FontSize = 12;
             _title.FontWeight = FontWeights.SemiBold;
             _title.TextTrimming = TextTrimming.CharacterEllipsis;
-            _title.Margin = new Thickness(4, 0, 8, 0);
+            _title.Margin = new Thickness(4, 0, 6, 0);
             _header.Children.Add(_title);
 
             _scroll = new ScrollViewer();
             _scroll.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
             _scroll.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
-            _scroll.Padding = new Thickness(8);
+            _scroll.Padding = new Thickness(8, 7, 8, 8);
             root.Children.Add(_scroll);
 
             _itemsPanel = new StackPanel();
@@ -124,10 +124,10 @@ namespace TidyDock
         {
             _palette = palette ?? ThemeService.GetPalette(_config.Dock.Theme);
             _border.MaxHeight = _config.FolderPanel.MaxHeight;
-            _scroll.MaxHeight = Math.Max(160, _config.FolderPanel.MaxHeight - 42);
-            _border.BorderBrush = ThemeService.Brush(_palette.PanelBorder);
-            _border.Background = ThemeService.Brush(_palette.PanelBackground, 0.92);
-            _header.Background = ThemeService.Brush(_palette.PanelHeader, _palette.IsDark ? 0.7 : 0.36);
+            _scroll.MaxHeight = Math.Max(160, _config.FolderPanel.MaxHeight - 38);
+            _border.BorderBrush = ThemeService.Brush(_palette.PanelBorder, 0.46);
+            _border.Background = ThemeService.Brush(_palette.PanelBackground, 0.66);
+            _header.Background = ThemeService.Brush(_palette.PanelHeader, _palette.IsDark ? 0.34 : 0.22);
             _title.Foreground = ThemeService.Brush(_palette.Text);
             _backButton.ToolTip = T("back");
             _explorerButton.ToolTip = T("openInExplorer");
@@ -306,9 +306,9 @@ namespace TidyDock
         private UIElement MakeEntryButton(FolderEntry entry)
         {
             var button = new Button();
-            button.Height = 30;
+            button.Height = 32;
             button.Margin = new Thickness(0, 1, 0, 1);
-            button.Padding = new Thickness(10, 0, 10, 0);
+            button.Padding = new Thickness(7, 0, 8, 0);
             button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
             button.Background = Brushes.Transparent;
             button.Foreground = ThemeService.Brush(_palette.Text);
@@ -316,7 +316,7 @@ namespace TidyDock
             button.ToolTip = entry.Name;
             button.Template = CreatePlainButtonTemplate();
 
-            button.MouseEnter += delegate { button.Background = ThemeService.Brush(_palette.TileHover, _palette.IsDark ? 0.28 : 0.38); };
+            button.MouseEnter += delegate { button.Background = ThemeService.Brush(_palette.TileHover, _palette.IsDark ? 0.22 : 0.32); };
             button.MouseLeave += delegate { button.Background = Brushes.Transparent; };
 
             var row = new Grid();
@@ -336,7 +336,7 @@ namespace TidyDock
             row.Children.Add(image);
 
             var text = new TextBlock();
-            text.Text = entry.Name;
+            text.Text = GetDisplayName(entry);
             text.FontSize = 12;
             text.VerticalAlignment = VerticalAlignment.Center;
             text.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -369,7 +369,7 @@ namespace TidyDock
         private UIElement MakeStatus(string text)
         {
             var block = new TextBlock();
-            block.Width = 380;
+            block.Width = 190;
             block.Margin = new Thickness(8);
             block.Text = text;
             block.FontSize = 12;
@@ -382,11 +382,11 @@ namespace TidyDock
         {
             var button = new Button();
             button.Content = text;
-            button.Width = 30;
-            button.Height = 28;
+            button.Width = 26;
+            button.Height = 26;
             button.Margin = new Thickness(6, 6, 0, 6);
             button.Padding = new Thickness(0);
-            button.FontSize = 14;
+            button.FontSize = 13;
             button.BorderThickness = new Thickness(0);
             button.HorizontalContentAlignment = HorizontalAlignment.Center;
             button.VerticalContentAlignment = VerticalAlignment.Center;
@@ -398,6 +398,7 @@ namespace TidyDock
         private ControlTemplate CreatePlainButtonTemplate()
         {
             var border = new FrameworkElementFactory(typeof(Border));
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(16));
             border.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
             border.SetBinding(Border.PaddingProperty, new System.Windows.Data.Binding("Padding") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
 
@@ -416,6 +417,21 @@ namespace TidyDock
             return LocalizationService.T(_config, key);
         }
 
+        private string GetDisplayName(FolderEntry entry)
+        {
+            if (entry == null || entry.IsDirectory || string.IsNullOrEmpty(entry.Name))
+            {
+                return entry == null ? string.Empty : entry.Name;
+            }
+
+            if (string.Equals(Path.GetExtension(entry.Name), ".lnk", StringComparison.OrdinalIgnoreCase))
+            {
+                return Path.GetFileNameWithoutExtension(entry.Name);
+            }
+
+            return entry.Name;
+        }
+
         private void StyleHeaderButton(Button button)
         {
             if (button == null || _palette == null)
@@ -423,7 +439,7 @@ namespace TidyDock
                 return;
             }
 
-            button.Background = ThemeService.Brush(_palette.ControlBackground, _palette.IsDark ? 0.42 : 0.52);
+            button.Background = ThemeService.Brush(_palette.ControlBackground, _palette.IsDark ? 0.3 : 0.36);
             button.Foreground = ThemeService.Brush(_palette.Text);
         }
 
