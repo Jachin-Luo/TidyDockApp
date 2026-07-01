@@ -56,13 +56,15 @@ namespace TidyDock
             AllowDrop = true;
 
             _dockBorder = new Border();
-            _dockBorder.BorderThickness = new Thickness(0);
+            _dockBorder.SnapsToDevicePixels = true;
+            _dockBorder.BorderThickness = new Thickness(1);
             _dockBorder.BorderBrush = Brushes.Transparent;
             _dockBorder.Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
-                BlurRadius = 26,
-                ShadowDepth = 8,
-                Opacity = 0.26
+                BlurRadius = 30,
+                ShadowDepth = 10,
+                Direction = 270,
+                Opacity = 0.28
             };
             Content = _dockBorder;
 
@@ -258,25 +260,19 @@ namespace TidyDock
             Topmost = _config.Dock.AlwaysOnTop;
             _dockBorder.CornerRadius = new CornerRadius(_config.Dock.CornerRadius);
             _dockBorder.Padding = GetDockPadding();
-            _dockBorder.BorderThickness = new Thickness(0);
-            _dockBorder.BorderBrush = Brushes.Transparent;
             if (_config.Dock.Opacity <= 0)
             {
                 _dockBorder.Background = Brushes.Transparent;
+                _dockBorder.BorderThickness = new Thickness(0);
+                _dockBorder.BorderBrush = Brushes.Transparent;
                 _dockBorder.Effect = null;
             }
             else
             {
-                _dockBorder.Background = ThemeService.Brush(_palette.DockBackground, _config.Dock.Opacity);
-                if (_dockBorder.Effect == null)
-                {
-                    _dockBorder.Effect = new System.Windows.Media.Effects.DropShadowEffect
-                    {
-                        BlurRadius = 26,
-                        ShadowDepth = 8,
-                        Opacity = 0.26
-                    };
-                }
+                _dockBorder.BorderThickness = new Thickness(1);
+                _dockBorder.BorderBrush = CreateDockBorderBrush();
+                _dockBorder.Background = CreateDockGlassBrush(_config.Dock.Opacity);
+                ApplyDockShadow();
             }
 
             if (IsVertical())
@@ -313,9 +309,93 @@ namespace TidyDock
         {
             if (IsVertical())
             {
-                return new Thickness(12, 14, 12, 14);
+                return new Thickness(10, 14, 10, 14);
             }
-            return new Thickness(14, 12, 14, 12);
+            return new Thickness(14, 10, 14, 10);
+        }
+
+        private void ApplyDockShadow()
+        {
+            _dockBorder.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = _palette.Shadow,
+                BlurRadius = _palette.IsDark ? 34 : 30,
+                ShadowDepth = IsVertical() ? 8 : 10,
+                Direction = GetDockShadowDirection(),
+                Opacity = _palette.IsDark ? 0.34 : 0.22
+            };
+        }
+
+        private double GetDockShadowDirection()
+        {
+            if (_config.Dock.Position == "top")
+            {
+                return 90;
+            }
+            if (_config.Dock.Position == "left")
+            {
+                return 180;
+            }
+            if (_config.Dock.Position == "right")
+            {
+                return 0;
+            }
+            return 270;
+        }
+
+        private Brush CreateDockGlassBrush(double opacity)
+        {
+            var brush = new LinearGradientBrush();
+            brush.StartPoint = new Point(0, 0);
+            brush.EndPoint = IsVertical() ? new Point(1, 0) : new Point(0, 1);
+
+            var highlight = _palette.IsDark ? Color.FromRgb(82, 94, 116) : Color.FromRgb(255, 255, 255);
+            var lowlight = _palette.IsDark ? Color.FromRgb(22, 27, 35) : Color.FromRgb(225, 235, 244);
+
+            brush.GradientStops.Add(new GradientStop(WithOpacity(highlight, opacity * (_palette.IsDark ? 0.46 : 0.78)), 0));
+            brush.GradientStops.Add(new GradientStop(WithOpacity(_palette.DockBackground, opacity), 0.42));
+            brush.GradientStops.Add(new GradientStop(WithOpacity(lowlight, opacity * (_palette.IsDark ? 0.72 : 0.55)), 1));
+            brush.Freeze();
+            return brush;
+        }
+
+        private Brush CreateDockBorderBrush()
+        {
+            var brush = new LinearGradientBrush();
+            brush.StartPoint = new Point(0, 0);
+            brush.EndPoint = IsVertical() ? new Point(1, 0) : new Point(0, 1);
+
+            var top = _palette.IsDark ? Color.FromRgb(120, 134, 158) : Color.FromRgb(255, 255, 255);
+            var bottom = _palette.IsDark ? Color.FromRgb(46, 55, 68) : Color.FromRgb(194, 209, 222);
+            brush.GradientStops.Add(new GradientStop(WithOpacity(top, _palette.IsDark ? 0.42 : 0.78), 0));
+            brush.GradientStops.Add(new GradientStop(WithOpacity(_palette.DockBorder, _palette.IsDark ? 0.26 : 0.54), 0.5));
+            brush.GradientStops.Add(new GradientStop(WithOpacity(bottom, _palette.IsDark ? 0.34 : 0.58), 1));
+            brush.Freeze();
+            return brush;
+        }
+
+        private Brush CreateIconHoverBrush()
+        {
+            var brush = new LinearGradientBrush();
+            brush.StartPoint = new Point(0, 0);
+            brush.EndPoint = new Point(0, 1);
+
+            var highlight = _palette.IsDark ? Color.FromRgb(118, 133, 158) : Color.FromRgb(255, 255, 255);
+            var baseColor = _palette.IsDark ? _palette.TileHover : _palette.ControlBackground;
+            brush.GradientStops.Add(new GradientStop(WithOpacity(highlight, _palette.IsDark ? 0.32 : 0.72), 0));
+            brush.GradientStops.Add(new GradientStop(WithOpacity(baseColor, _palette.IsDark ? 0.18 : 0.52), 1));
+            brush.Freeze();
+            return brush;
+        }
+
+        private static Color WithOpacity(Color color, double opacity)
+        {
+            opacity = Math.Max(0, Math.Min(1, opacity));
+            return Color.FromArgb(
+                (byte)(opacity * 255),
+                color.R,
+                color.G,
+                color.B);
         }
 
         private void RenderDock()
@@ -376,8 +456,8 @@ namespace TidyDock
         {
             var button = new Button();
             var showLabel = _config.Dock.ShowItemLabels;
-            button.Width = showLabel ? Math.Max(72, _config.Dock.IconSize) : _config.Dock.IconSize;
-            button.Height = showLabel ? _config.Dock.IconSize + 20 : _config.Dock.IconSize;
+            button.Width = showLabel ? Math.Max(76, _config.Dock.IconSize + 8) : _config.Dock.IconSize + 8;
+            button.Height = showLabel ? _config.Dock.IconSize + 24 : _config.Dock.IconSize + 8;
             button.Margin = IsVertical() ? new Thickness(0, gap / 2, 0, gap / 2) : new Thickness(gap / 2, 0, gap / 2, 0);
             button.Padding = new Thickness(0);
             button.BorderThickness = new Thickness(0);
@@ -393,15 +473,27 @@ namespace TidyDock
             stack.VerticalAlignment = VerticalAlignment.Center;
             stack.Orientation = Orientation.Vertical;
 
+            var iconShell = new Border();
+            iconShell.Width = _config.Dock.IconSize;
+            iconShell.Height = _config.Dock.IconSize;
+            iconShell.CornerRadius = new CornerRadius(Math.Max(10, _config.Dock.IconSize / 4.8));
+            iconShell.BorderThickness = new Thickness(1);
+            iconShell.BorderBrush = Brushes.Transparent;
+            iconShell.Background = Brushes.Transparent;
+            iconShell.SnapsToDevicePixels = true;
+            iconShell.Margin = showLabel ? new Thickness(0, 0, 0, 2) : new Thickness(0);
+
             var image = new Image();
-            image.Width = _config.Dock.IconSize - 8;
-            image.Height = _config.Dock.IconSize - 8;
-            image.Margin = showLabel ? new Thickness(4, 0, 4, 2) : new Thickness(4);
+            image.Width = _config.Dock.IconSize - 6;
+            image.Height = _config.Dock.IconSize - 6;
+            image.Margin = new Thickness(3);
             image.Stretch = Stretch.Uniform;
             image.SnapsToDevicePixels = true;
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
             image.Source = _iconCache.GetIcon(item, _config.Dock.IconSize);
-            stack.Children.Add(image);
+            iconShell.Child = image;
+            stack.Children.Add(iconShell);
+            button.Resources["IconShell"] = iconShell;
 
             if (showLabel)
             {
@@ -418,8 +510,8 @@ namespace TidyDock
             button.Content = stack;
 
             button.Click += delegate { ActivateItem(item, button); };
-            button.MouseEnter += delegate { AnimateDockItem(button, true); };
-            button.MouseLeave += delegate { AnimateDockItem(button, false); };
+            button.MouseEnter += delegate { StyleDockButton(button, true); AnimateDockItem(button, true); };
+            button.MouseLeave += delegate { StyleDockButton(button, false); AnimateDockItem(button, false); };
             button.PreviewMouseLeftButtonDown += delegate(object sender, MouseButtonEventArgs e)
             {
                 _pressedItem = item;
@@ -432,6 +524,26 @@ namespace TidyDock
             button.ContextMenu = CreateItemMenu(item);
 
             return button;
+        }
+
+        private void StyleDockButton(Button button, bool active)
+        {
+            var shell = button.Resources["IconShell"] as Border;
+            if (shell == null)
+            {
+                return;
+            }
+
+            if (active)
+            {
+                shell.Background = CreateIconHoverBrush();
+                shell.BorderBrush = ThemeService.Brush(_palette.DockBorder, _palette.IsDark ? 0.24 : 0.5);
+            }
+            else
+            {
+                shell.Background = Brushes.Transparent;
+                shell.BorderBrush = Brushes.Transparent;
+            }
         }
 
         private ContextMenu CreateItemMenu(DockItem item)
