@@ -1,5 +1,10 @@
 ﻿# TidyDock Refactor Task Breakdown
 
+See also:
+
+- [v0.2.0 development plan](plans/v0.2.0.md)
+- [v0.2.0 issue backlog](issues/v0.2.0-backlog.md)
+
 ## Phase 0: Baseline
 
 - Record current product boundary.

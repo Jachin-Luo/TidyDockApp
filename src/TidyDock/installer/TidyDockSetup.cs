@@ -10,15 +10,15 @@ using System.Windows.Forms;
 [assembly: AssemblyCompany("TidyDock")]
 [assembly: AssemblyProduct("TidyDock")]
 [assembly: AssemblyCopyright("Copyright 2026")]
-[assembly: AssemblyVersion("0.1.0.0")]
-[assembly: AssemblyFileVersion("0.1.0.0")]
+[assembly: AssemblyVersion("0.1.1.0")]
+[assembly: AssemblyFileVersion("0.1.1.0")]
 
 namespace TidyDockSetup
 {
     internal static class Program
     {
         private const string ProductName = "TidyDock";
-        private const string Version = "0.1.0";
+        private const string Version = "0.1.1";
 
         [STAThread]
         private static int Main(string[] args)

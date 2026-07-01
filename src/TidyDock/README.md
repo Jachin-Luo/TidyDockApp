@@ -114,7 +114,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - Local error log for unexpected exceptions
 - Local JSON config
 - Local icon cache
-- Assembly version info: `0.1.0.0`
+- Assembly version info: `0.1.1.0`
 - Custom application/tray icon
 - Portable release script and zip output
 - Single-file current-user installer: `TidyDockSetup.exe`

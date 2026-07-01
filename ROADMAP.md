@@ -4,19 +4,21 @@ This roadmap is intentionally conservative. TidyDock should stay lightweight and
 
 ## Current Focus
 
-- Keep the MVP scope clear.
-- Improve runtime memory and resource lifetime.
-- Make shortcut imports robust.
-- Improve configuration validation and repair.
-- Stabilize packaging and release checks.
+- Treat `v0.1.1` as the first stable MVP baseline.
+- Prepare the `v0.2.0` hardening milestone.
+- Improve Dock item management and broken-item recovery.
+- Improve configuration validation, repair, backup, and restore.
+- Keep performance work measurement-driven.
 
 ## Near-Term
 
-- Extract Dock item operations into a service.
-- Extract Dock layout and hot-zone calculations.
-- Add config validation and migration checks.
-- Expand smoke tests around install/uninstall and shortcut import.
-- Improve settings window structure without broad visual redesign.
+- Add Dock item context menu actions.
+- Add broken-item state and relink flow.
+- Add config validation and repair checks.
+- Add config backup and restore UX.
+- Improve log access and diagnostics.
+- Record startup time and update release performance baselines.
+- Add tag-triggered GitHub Release packaging.
 
 ## Later
 
@@ -34,4 +36,3 @@ This roadmap is intentionally conservative. TidyDock should stay lightweight and
 - Recent files.
 - File indexing.
 - Cloud sync.
-

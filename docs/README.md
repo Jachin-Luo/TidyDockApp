@@ -14,7 +14,10 @@ This directory keeps product, design, development, testing, release, and plannin
 8. [09-test-plan.md](09-test-plan.md): test plan, including performance checks.
 9. [10-release-checklist.md](10-release-checklist.md): release checklist.
 10. [15-performance-baseline.md](15-performance-baseline.md): current performance baseline.
-11. [adr/0001-tech-stack.md](adr/0001-tech-stack.md): architecture decision record.
+11. [plans/v0.2.0.md](plans/v0.2.0.md): next development milestone.
+12. [issues/v0.2.0-backlog.md](issues/v0.2.0-backlog.md): issue-ready v0.2.0 backlog.
+13. [releases/v0.1.1.md](releases/v0.1.1.md): v0.1.1 release notes.
+14. [adr/0001-tech-stack.md](adr/0001-tech-stack.md): architecture decision record.
 
 ## Current Refactor Principles
 

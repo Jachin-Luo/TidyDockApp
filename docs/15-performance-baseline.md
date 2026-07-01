@@ -5,8 +5,8 @@ Date: 2026-07-01
 ## Build Under Test
 
 - Executable: `src/TidyDock/bin/Release/TidyDock.exe`
-- File version: `0.1.0.0`
-- Product version: `0.1.0.0`
+- File version: `0.1.1.0`
+- Product version: `0.1.1.0`
 - Executable size: 136704 bytes
 
 ## Command

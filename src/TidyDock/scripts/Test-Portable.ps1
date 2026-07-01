@@ -67,7 +67,7 @@ finally {
 Write-Host "Checking version info..."
 $version = (Get-Item -LiteralPath $exePath).VersionInfo
 Assert-True ($version.ProductName -eq "TidyDock") "Unexpected product name: $($version.ProductName)"
-Assert-True ($version.FileVersion -eq "0.1.0.0") "Unexpected file version: $($version.FileVersion)"
+Assert-True ($version.FileVersion -eq "0.1.1.0") "Unexpected file version: $($version.FileVersion)"
 
 Write-Host "Checking source text for common mojibake markers..."
 $markers = @(0x9352, 0x93c2, 0x7ed7, 0x9225, 0x8133, 0x59dd, 0x6905, 0x5997, 0x7481, 0x9358, 0x7f03, 0x6f70, 0x9881, 0x7c28, 0x93c8) |

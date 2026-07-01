@@ -1,8 +1,8 @@
 # TidyDock Release Notes
 
-## 0.1.0
+## 0.1.1
 
-First usable Windows WPF build based on the current requirement document, design document, and HTML prototype.
+First stable MVP baseline after repository cleanup, documentation pass, and post-MVP behavior fixes.
 
 Included:
 
@@ -50,6 +50,9 @@ Included:
 - Backup-assisted atomic config save with `.bak`
 - Debounced settings saves during frequent UI changes
 - Startup idle working-set trim for lower resident memory
+- Custom bitmap icons are decoded near display size to reduce retained image memory
+- Dock and hot zone are hidden from the Alt+Tab application switcher
+- `.lnk` shortcuts are imported into the local app data directory so Dock items do not depend on desktop shortcut files
 - Local error log for unexpected exceptions
 
 Explicitly excluded:
