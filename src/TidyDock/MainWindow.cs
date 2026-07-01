@@ -26,6 +26,8 @@ namespace TidyDock
         private FolderPanel _folderPanel;
         private readonly DispatcherTimer _hideTimer;
         private readonly DispatcherTimer _saveTimer;
+        private readonly DispatcherTimer _showDesktopRestoreTimer;
+        private int _showDesktopRestoreAttempts;
         private ThemePalette _palette;
         private Window _hotZone;
         private DockItem _pressedItem;
@@ -100,9 +102,12 @@ namespace TidyDock
                 _settingsService.Save(_config);
             };
 
+            _showDesktopRestoreTimer = new DispatcherTimer();
+            _showDesktopRestoreTimer.Interval = TimeSpan.FromMilliseconds(220);
+            _showDesktopRestoreTimer.Tick += delegate { RestoreAfterShowDesktop(); };
+
             Loaded += delegate
             {
-                RenderDock();
                 ApplySettings();
             };
 
@@ -110,6 +115,7 @@ namespace TidyDock
             Drop += OnDockDrop;
             PreviewKeyDown += OnPreviewKeyDown;
             StateChanged += OnWindowStateChanged;
+            SourceInitialized += delegate { HideFromAltTab(this); };
         }
 
         public void ShowSettings()
@@ -118,6 +124,7 @@ namespace TidyDock
             {
                 _settingsWindow = new SettingsWindow(this, _config);
                 _settingsWindow.Owner = this;
+                _settingsWindow.Closed += delegate { _settingsWindow = null; };
                 _settingsWindow.Show();
             }
             else
@@ -213,20 +220,36 @@ namespace TidyDock
                 return;
             }
 
-            Dispatcher.BeginInvoke(new Action(delegate
-            {
-                if (WindowState != WindowState.Minimized)
-                {
-                    return;
-                }
+            ScheduleShowDesktopRestore();
+        }
 
+        private void ScheduleShowDesktopRestore()
+        {
+            _showDesktopRestoreAttempts = 0;
+            _showDesktopRestoreTimer.Stop();
+            _showDesktopRestoreTimer.Start();
+        }
+
+        private void RestoreAfterShowDesktop()
+        {
+            _showDesktopRestoreAttempts++;
+
+            if (WindowState == WindowState.Minimized)
+            {
                 WindowState = WindowState.Normal;
-                if (!IsVisible)
-                {
-                    Show();
-                }
-                PositionWindow();
-            }), DispatcherPriority.Background);
+            }
+
+            if (!IsVisible)
+            {
+                Show();
+            }
+
+            PositionWindow();
+
+            if (_showDesktopRestoreAttempts >= 4)
+            {
+                _showDesktopRestoreTimer.Stop();
+            }
         }
 
         public void ApplySettings()
@@ -675,12 +698,27 @@ namespace TidyDock
                 return;
             }
 
+            var id = SettingsService.NewId();
+            var itemTarget = target;
+            if (type == "app" && string.Equals(Path.GetExtension(target), ".lnk", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    itemTarget = _settingsService.ImportShortcut(target, id);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(T("shortcutImportFailed") + ex.Message, "TidyDock", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
             var item = new DockItem
             {
-                Id = SettingsService.NewId(),
+                Id = id,
                 Type = type,
                 Name = string.IsNullOrWhiteSpace(name) ? Path.GetFileName(target) : name,
-                Target = target
+                Target = itemTarget
             };
 
             if (insertIndex.HasValue && insertIndex.Value >= 0 && insertIndex.Value <= _config.Items.Count)
@@ -841,6 +879,24 @@ namespace TidyDock
 
             var style = GetWindowLong(handle, GWL_EXSTYLE);
             SetWindowLong(handle, GWL_EXSTYLE, style | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW);
+        }
+
+        private void HideFromAltTab(Window window)
+        {
+            if (window == null)
+            {
+                return;
+            }
+
+            var handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            var style = GetWindowLong(handle, GWL_EXSTYLE);
+            style = (style | WS_EX_TOOLWINDOW) & ~WS_EX_APPWINDOW;
+            SetWindowLong(handle, GWL_EXSTYLE, style);
         }
 
         private void OnDockGiveFeedback(object sender, GiveFeedbackEventArgs e)
@@ -1145,6 +1201,7 @@ namespace TidyDock
                 _hotZone.ResizeMode = ResizeMode.NoResize;
                 _hotZone.ShowInTaskbar = false;
                 _hotZone.Topmost = true;
+                _hotZone.SourceInitialized += delegate { HideFromAltTab(_hotZone); };
                 _hotZone.MouseEnter += delegate { ShowFromAutoHide(); };
             }
 
@@ -1221,6 +1278,7 @@ namespace TidyDock
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_TRANSPARENT = 0x00000020;
         private const int WS_EX_TOOLWINDOW = 0x00000080;
+        private const int WS_EX_APPWINDOW = 0x00040000;
         private const int WS_EX_NOACTIVATE = 0x08000000;
 
         [StructLayout(LayoutKind.Sequential)]

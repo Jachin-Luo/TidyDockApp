@@ -29,14 +29,14 @@ namespace TidyDock
 
             if (!string.IsNullOrEmpty(item.Icon) && File.Exists(item.Icon))
             {
-                return LoadBitmap(item.Icon);
+                return LoadBitmap(item.Icon, size);
             }
 
             var key = Hash("v2|" + size + "|" + (item.Type ?? string.Empty) + "|" + (item.Target ?? string.Empty));
             var cachePath = Path.Combine(_cacheDirectory, key + ".png");
             if (File.Exists(cachePath))
             {
-                return LoadBitmap(cachePath);
+                return LoadBitmap(cachePath, size);
             }
 
             var icon = ExtractIcon(item, size);
@@ -61,7 +61,7 @@ namespace TidyDock
             var cachePath = Path.Combine(_cacheDirectory, key + ".png");
             if (File.Exists(cachePath))
             {
-                return LoadBitmap(cachePath);
+                return LoadBitmap(cachePath, size);
             }
 
             var icon = ExtractShellIcon(path, isDirectory, size);
@@ -211,13 +211,18 @@ namespace TidyDock
             }
         }
 
-        private ImageSource LoadBitmap(string path)
+        private ImageSource LoadBitmap(string path, int decodeSize)
         {
             try
             {
                 var bitmap = new BitmapImage();
                 bitmap.BeginInit();
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+                if (decodeSize > 0)
+                {
+                    bitmap.DecodePixelWidth = Math.Max(16, decodeSize);
+                }
                 bitmap.UriSource = new Uri(path, UriKind.Absolute);
                 bitmap.EndInit();
                 bitmap.Freeze();

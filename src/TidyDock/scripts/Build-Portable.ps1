@@ -1,11 +1,11 @@
-param(
+﻿param(
     [string]$Configuration = "Release"
 )
 
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$projectPath = Join-Path $projectRoot "TidyDockApp.csproj"
+$projectPath = Join-Path $projectRoot "TidyDock.csproj"
 $msbuild = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe"
 $distRoot = Join-Path $projectRoot "dist"
 $portableRoot = Join-Path $distRoot "TidyDock-portable"
@@ -108,3 +108,4 @@ Compress-Archive -LiteralPath $portableRoot -DestinationPath $zipPath -Force
 Write-Host "Portable package:"
 Write-Host $portableRoot
 Write-Host $zipPath
+

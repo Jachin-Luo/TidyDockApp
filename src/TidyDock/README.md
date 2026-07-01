@@ -1,4 +1,4 @@
-# TidyDockApp
+﻿# TidyDock Source
 
 TidyDock is a lightweight Windows WPF desktop Dock built from the current requirement document, design document, and HTML prototype.
 
@@ -7,25 +7,25 @@ TidyDock is a lightweight Windows WPF desktop Dock built from the current requir
 Development build:
 
 ```text
-<workspace>\TidyDockApp\bin\Release\TidyDock.exe
+<workspace>\src\TidyDock\bin\Release\TidyDock.exe
 ```
 
 Portable package:
 
 ```text
-<workspace>\TidyDockApp\dist\TidyDock-portable\TidyDock.exe
+<workspace>\src\TidyDock\dist\TidyDock-portable\TidyDock.exe
 ```
 
 Portable zip:
 
 ```text
-<workspace>\TidyDockApp\dist\TidyDock-portable.zip
+<workspace>\src\TidyDock\dist\TidyDock-portable.zip
 ```
 
 Installer package:
 
 ```text
-<workspace>\TidyDockApp\dist\TidyDockSetup.exe
+<workspace>\src\TidyDock\dist\TidyDockSetup.exe
 ```
 
 ## Build
@@ -33,31 +33,31 @@ Installer package:
 This machine does not have the .NET SDK installed, but it has .NET Framework MSBuild:
 
 ```powershell
-& 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe' '<workspace>\TidyDockApp\TidyDockApp.csproj' /p:Configuration=Release /verbosity:minimal
+& 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe' '<workspace>\src\TidyDock\TidyDock.csproj' /p:Configuration=Release /verbosity:minimal
 ```
 
 Build portable output:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File '<workspace>\TidyDockApp\scripts\Build-Portable.ps1'
+powershell -ExecutionPolicy Bypass -File '<workspace>\src\TidyDock\scripts\Build-Portable.ps1'
 ```
 
 Verify portable output:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File '<workspace>\TidyDockApp\scripts\Test-Portable.ps1'
+powershell -ExecutionPolicy Bypass -File '<workspace>\src\TidyDock\scripts\Test-Portable.ps1'
 ```
 
 Build single-file installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File '<workspace>\TidyDockApp\scripts\Build-Installer.ps1'
+powershell -ExecutionPolicy Bypass -File '<workspace>\src\TidyDock\scripts\Build-Installer.ps1'
 ```
 
 Install portable build for current user:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File '<workspace>\TidyDockApp\dist\TidyDock-portable\Install-CurrentUser.ps1' -Launch
+powershell -ExecutionPolicy Bypass -File '<workspace>\src\TidyDock\dist\TidyDock-portable\Install-CurrentUser.ps1' -Launch
 ```
 
 Uninstall current-user install:
@@ -73,6 +73,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\TidyDock\Un
 - App, shortcut, folder, file, URL, and optional separator items
 - Edit mode gates Dock item editing
 - Drag files, folders, `.exe`, and `.lnk` files into the Dock in edit mode
+- Imported `.lnk` shortcuts are copied into local TidyDock data so desktop shortcut cleanup does not break Dock items
 - Reorder Dock items by dragging in edit mode
 - Cursor-centered drag preview while reordering Dock items
 - Hover magnification
@@ -168,3 +169,6 @@ Error log:
 - More refined control styling
 - More detailed multi-monitor edge testing
 - Signed installer package
+
+
+

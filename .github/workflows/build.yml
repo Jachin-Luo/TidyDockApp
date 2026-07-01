@@ -1,0 +1,37 @@
+﻿name: Build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  windows:
+    name: Windows build and package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build installer and portable package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Build-Installer.ps1"
+
+      - name: Verify portable package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Test-Portable.ps1" -SkipLaunch
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TidyDock-windows
+          path: |
+            src/TidyDock/dist/TidyDockSetup.exe
+            src/TidyDock/dist/TidyDock-portable.zip
+
+

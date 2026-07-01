@@ -29,6 +29,7 @@ namespace TidyDock
             if (key == "dropHint") return en ? "Drop apps, folders, or files" : "\u62d6\u5165\u5e94\u7528\u3001\u6587\u4ef6\u5939\u6216\u6587\u4ef6";
             if (key == "folderMissing") return en ? "Folder not found: " : "\u6587\u4ef6\u5939\u4e0d\u5b58\u5728\uff1a";
             if (key == "targetMissing") return en ? "Target not found: " : "\u76ee\u6807\u4e0d\u5b58\u5728\uff1a";
+            if (key == "shortcutImportFailed") return en ? "Failed to import shortcut: " : "\u5bfc\u5165\u5feb\u6377\u65b9\u5f0f\u5931\u8d25\uff1a";
             if (key == "iconFilter") return en ? "Icons or images|*.ico;*.png;*.jpg;*.jpeg;*.bmp|All files|*.*" : "\u56fe\u6807\u6216\u56fe\u7247|*.ico;*.png;*.jpg;*.jpeg;*.bmp|\u6240\u6709\u6587\u4ef6|*.*";
             if (key == "appFileFilter") return en ? "Apps, shortcuts, or files|*.exe;*.lnk;*.*|All files|*.*" : "\u5e94\u7528\u3001\u5feb\u6377\u65b9\u5f0f\u6216\u6587\u4ef6|*.exe;*.lnk;*.*|\u6240\u6709\u6587\u4ef6|*.*";
             if (key == "settingsTitle") return en ? "TidyDock Settings" : "TidyDock \u8bbe\u7f6e";

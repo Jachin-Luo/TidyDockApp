@@ -1,10 +1,10 @@
-# Build outputs
+﻿# Build outputs
 bin/
 obj/
 dist/
-TidyDockApp/bin/
-TidyDockApp/obj/
-TidyDockApp/dist/
+src/TidyDock/bin/
+src/TidyDock/obj/
+src/TidyDock/dist/
 
 # Visual Studio / MSBuild local state
 .vs/

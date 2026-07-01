@@ -13,12 +13,14 @@ namespace TidyDock
                 "TidyDock");
             ConfigDirectory = Path.Combine(AppDirectory, "config");
             IconCacheDirectory = Path.Combine(AppDirectory, "cache", "icons");
+            ShortcutDirectory = Path.Combine(AppDirectory, "shortcuts");
             ConfigPath = Path.Combine(ConfigDirectory, "settings.json");
         }
 
         public string AppDirectory { get; private set; }
         public string ConfigDirectory { get; private set; }
         public string IconCacheDirectory { get; private set; }
+        public string ShortcutDirectory { get; private set; }
         public string ConfigPath { get; private set; }
 
         public string LogDirectory
@@ -43,7 +45,9 @@ namespace TidyDock
                 {
                     var serializer = new DataContractJsonSerializer(typeof(DockConfig));
                     var config = serializer.ReadObject(stream) as DockConfig;
-                    return Normalize(config);
+                    config = Normalize(config);
+                    MigrateShortcutTargets(config);
+                    return config;
                 }
             }
             catch
@@ -109,6 +113,7 @@ namespace TidyDock
             Directory.CreateDirectory(AppDirectory);
             Directory.CreateDirectory(ConfigDirectory);
             Directory.CreateDirectory(IconCacheDirectory);
+            Directory.CreateDirectory(ShortcutDirectory);
             Directory.CreateDirectory(LogDirectory);
         }
 
@@ -133,6 +138,14 @@ namespace TidyDock
             if (config.Items == null)
             {
                 config.Items = new System.Collections.Generic.List<DockItem>();
+            }
+
+            foreach (var item in config.Items)
+            {
+                if (item != null && string.IsNullOrEmpty(item.Id))
+                {
+                    item.Id = NewId();
+                }
             }
 
             if (config.Dock.IconSize < 32)
@@ -208,6 +221,80 @@ namespace TidyDock
         public static string NewId()
         {
             return Guid.NewGuid().ToString("N");
+        }
+
+        public string ImportShortcut(string sourcePath, string itemId)
+        {
+            if (!IsShortcutPath(sourcePath) || !File.Exists(sourcePath))
+            {
+                return sourcePath;
+            }
+
+            EnsureDirectories();
+
+            if (IsPathUnderDirectory(sourcePath, ShortcutDirectory))
+            {
+                return sourcePath;
+            }
+
+            var safeItemId = string.IsNullOrEmpty(itemId) ? NewId() : itemId;
+            var targetPath = Path.Combine(ShortcutDirectory, safeItemId + ".lnk");
+            File.Copy(sourcePath, targetPath, true);
+            return targetPath;
+        }
+
+        private void MigrateShortcutTargets(DockConfig config)
+        {
+            if (config == null || config.Items == null)
+            {
+                return;
+            }
+
+            foreach (var item in config.Items)
+            {
+                if (item == null ||
+                    item.Type != "app" ||
+                    string.IsNullOrEmpty(item.Target) ||
+                    !IsShortcutPath(item.Target) ||
+                    !File.Exists(item.Target) ||
+                    IsPathUnderDirectory(item.Target, ShortcutDirectory))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    item.Target = ImportShortcut(item.Target, item.Id);
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private static bool IsShortcutPath(string path)
+        {
+            return string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsPathUnderDirectory(string path, string directory)
+        {
+            if (string.IsNullOrEmpty(path) || string.IsNullOrEmpty(directory))
+            {
+                return false;
+            }
+
+            try
+            {
+                var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var fullDirectory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return fullPath.StartsWith(fullDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(fullPath, fullDirectory, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public void ClearIconCache()
