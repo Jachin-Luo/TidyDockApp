@@ -13,45 +13,47 @@ namespace TidyDock
         private readonly DockConfig _config;
         private ListBox _itemsList;
         private ScrollViewer _root;
+        private ThemePalette _palette;
         private bool _ready;
 
         public SettingsWindow(MainWindow mainWindow, DockConfig config)
         {
             _mainWindow = mainWindow;
             _config = config;
+            _palette = ThemeService.GetPalette(_config.Dock.Theme);
 
             Title = T("settingsTitle");
-            Width = 430;
-            Height = 680;
+            Width = 500;
+            Height = 720;
             ResizeMode = ResizeMode.CanResize;
-            MinWidth = 380;
-            MinHeight = 560;
+            MinWidth = 440;
+            MinHeight = 600;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             ApplyWindowTheme();
 
             _root = new ScrollViewer();
+            _root.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
             var panel = new StackPanel();
-            panel.Margin = new Thickness(18);
+            panel.Margin = new Thickness(18, 16, 18, 18);
             _root.Content = panel;
             Content = _root;
 
-            panel.Children.Add(MakeTitle(T("appearance")));
-            AddAppearanceSettings(panel);
+            AddAppearanceSettings(MakeSection(panel, T("appearance")));
 
-            panel.Children.Add(MakeTitle(T("behavior")));
-            AddBehaviorSettings(panel);
+            AddBehaviorSettings(MakeSection(panel, T("behavior")));
 
-            panel.Children.Add(MakeTitle(T("dockItems")));
-            AddItemManager(panel);
+            AddItemManager(MakeSection(panel, T("dockItems")));
 
-            var close = new Button();
-            close.Content = T("close");
-            close.Height = 32;
+            var close = MakeSmallButton(T("close"), delegate { Close(); });
+            close.Tag = "primary";
+            close.Height = 34;
+            close.MinWidth = 96;
+            close.HorizontalAlignment = HorizontalAlignment.Right;
             close.Margin = new Thickness(0, 14, 0, 0);
-            close.Click += delegate { Close(); };
             panel.Children.Add(close);
 
             RefreshItems();
+            ApplyWindowTheme();
             _ready = true;
             PreviewKeyDown += delegate(object sender, System.Windows.Input.KeyEventArgs e)
             {
@@ -312,7 +314,7 @@ namespace TidyDock
         private void AddItemManager(Panel panel)
         {
             _itemsList = new ListBox();
-            _itemsList.Height = 150;
+            _itemsList.Height = 168;
             _itemsList.Margin = new Thickness(0, 0, 0, 8);
             panel.Children.Add(_itemsList);
 
@@ -339,11 +341,12 @@ namespace TidyDock
         {
             var button = new Button();
             button.Content = text;
-            button.Height = 28;
+            button.Height = 30;
             button.MinWidth = 72;
             button.Margin = new Thickness(0, 0, 6, 6);
-            button.Padding = new Thickness(8, 0, 8, 0);
+            button.Padding = new Thickness(10, 0, 10, 0);
             button.Click += click;
+            StyleButton(button);
             return button;
         }
 
@@ -651,12 +654,13 @@ namespace TidyDock
 
         private void ApplyWindowTheme()
         {
-            Background = Brushes.White;
-            Foreground = Brushes.Black;
+            _palette = ThemeService.GetPalette(_config.Dock.Theme);
+            Background = ThemeService.Brush(_palette.WindowBackground);
+            Foreground = ThemeService.Brush(_palette.Text);
             if (_root != null)
             {
-                _root.Background = Brushes.White;
-                _root.Foreground = Brushes.Black;
+                _root.Background = ThemeService.Brush(_palette.WindowBackground);
+                StyleTree(_root);
             }
         }
 
@@ -716,8 +720,9 @@ namespace TidyDock
             block.Text = text;
             block.FontSize = 15;
             block.FontWeight = FontWeights.SemiBold;
-            block.Margin = new Thickness(0, 6, 0, 8);
-            block.Foreground = Brushes.Black;
+            block.Margin = new Thickness(0, 0, 0, 10);
+            block.Foreground = ThemeService.Brush(_palette.Text);
+            block.Tag = "title";
             return block;
         }
 
@@ -730,7 +735,7 @@ namespace TidyDock
             text.Text = label;
             text.FontSize = 12;
             text.Margin = new Thickness(0, 0, 0, 5);
-            text.Foreground = Brushes.Black;
+            text.Foreground = ThemeService.Brush(_palette.MutedText);
             root.Children.Add(text);
             root.Children.Add(control);
             return root;
@@ -745,6 +750,145 @@ namespace TidyDock
             slider.TickFrequency = Math.Max(1, (max - min) / 10);
             slider.IsSnapToTickEnabled = false;
             return slider;
+        }
+
+        private Panel MakeSection(Panel parent, string title)
+        {
+            var border = new Border();
+            border.Tag = "section";
+            border.Margin = new Thickness(0, 0, 0, 12);
+            border.Padding = new Thickness(14, 13, 14, 12);
+            border.CornerRadius = new CornerRadius(8);
+            border.BorderThickness = new Thickness(1);
+            border.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = _palette.Shadow,
+                BlurRadius = 16,
+                ShadowDepth = 4,
+                Opacity = _palette.IsDark ? 0.28 : 0.1
+            };
+
+            var section = new StackPanel();
+            section.Children.Add(MakeTitle(title));
+            border.Child = section;
+            parent.Children.Add(border);
+            StyleSection(border);
+            return section;
+        }
+
+        private void StyleTree(DependencyObject root)
+        {
+            var section = root as Border;
+            if (section != null && string.Equals(section.Tag as string, "section", StringComparison.Ordinal))
+            {
+                StyleSection(section);
+            }
+
+            var button = root as Button;
+            if (button != null)
+            {
+                StyleButton(button);
+            }
+
+            var combo = root as ComboBox;
+            if (combo != null)
+            {
+                combo.Height = 30;
+                combo.Foreground = ThemeService.Brush(_palette.Text);
+                combo.Background = ThemeService.Brush(_palette.ControlBackground, _palette.IsDark ? 0.92 : 1);
+                combo.BorderBrush = ThemeService.Brush(_palette.PanelBorder, _palette.IsDark ? 0.7 : 0.9);
+            }
+
+            var checkBox = root as CheckBox;
+            if (checkBox != null)
+            {
+                checkBox.Foreground = ThemeService.Brush(_palette.Text);
+            }
+
+            var listBox = root as ListBox;
+            if (listBox != null)
+            {
+                listBox.Foreground = ThemeService.Brush(_palette.Text);
+                listBox.Background = ThemeService.Brush(_palette.ControlBackground, _palette.IsDark ? 0.48 : 0.78);
+                listBox.BorderBrush = ThemeService.Brush(_palette.PanelBorder, _palette.IsDark ? 0.7 : 0.9);
+                listBox.BorderThickness = new Thickness(1);
+            }
+
+            var textBox = root as TextBox;
+            if (textBox != null)
+            {
+                textBox.Foreground = ThemeService.Brush(_palette.Text);
+                textBox.Background = ThemeService.Brush(_palette.ControlBackground);
+                textBox.BorderBrush = ThemeService.Brush(_palette.PanelBorder, _palette.IsDark ? 0.7 : 0.9);
+            }
+
+            var textBlock = root as TextBlock;
+            if (textBlock != null)
+            {
+                textBlock.Foreground = string.Equals(textBlock.Tag as string, "title", StringComparison.Ordinal)
+                    ? ThemeService.Brush(_palette.Text)
+                    : ThemeService.Brush(_palette.MutedText);
+            }
+
+            var childCount = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < childCount; i++)
+            {
+                StyleTree(VisualTreeHelper.GetChild(root, i));
+            }
+        }
+
+        private void StyleSection(Border border)
+        {
+            border.Background = ThemeService.Brush(_palette.PanelBackground, _palette.IsDark ? 0.78 : 0.94);
+            border.BorderBrush = ThemeService.Brush(_palette.PanelBorder, _palette.IsDark ? 0.44 : 0.78);
+            var effect = border.Effect as System.Windows.Media.Effects.DropShadowEffect;
+            if (effect != null)
+            {
+                effect.Color = _palette.Shadow;
+                effect.Opacity = _palette.IsDark ? 0.28 : 0.1;
+            }
+        }
+
+        private void StyleButton(Button button)
+        {
+            var primary = string.Equals(button.Tag as string, "primary", StringComparison.Ordinal);
+            button.FontSize = 12;
+            button.BorderThickness = new Thickness(1);
+            button.Foreground = ThemeService.Brush(primary ? _palette.AccentText : _palette.Text);
+            button.Background = ThemeService.Brush(primary ? _palette.Accent : _palette.ControlBackground, primary ? 1 : (_palette.IsDark ? 0.64 : 0.88));
+            button.BorderBrush = ThemeService.Brush(primary ? _palette.Accent : _palette.PanelBorder, primary ? 1 : (_palette.IsDark ? 0.62 : 0.9));
+            button.Template = CreateRoundedButtonTemplate(primary);
+        }
+
+        private ControlTemplate CreateRoundedButtonTemplate(bool primary)
+        {
+            var border = new FrameworkElementFactory(typeof(Border));
+            border.Name = "Chrome";
+            border.SetValue(Border.CornerRadiusProperty, new CornerRadius(7));
+            border.SetBinding(Border.BackgroundProperty, new System.Windows.Data.Binding("Background") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+            border.SetBinding(Border.BorderBrushProperty, new System.Windows.Data.Binding("BorderBrush") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+            border.SetBinding(Border.BorderThicknessProperty, new System.Windows.Data.Binding("BorderThickness") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+
+            var presenter = new FrameworkElementFactory(typeof(ContentPresenter));
+            presenter.SetValue(ContentPresenter.HorizontalAlignmentProperty, HorizontalAlignment.Center);
+            presenter.SetValue(ContentPresenter.VerticalAlignmentProperty, VerticalAlignment.Center);
+            presenter.SetBinding(ContentPresenter.MarginProperty, new System.Windows.Data.Binding("Padding") { RelativeSource = new System.Windows.Data.RelativeSource(System.Windows.Data.RelativeSourceMode.TemplatedParent) });
+            border.AppendChild(presenter);
+
+            var template = new ControlTemplate(typeof(Button));
+            template.VisualTree = border;
+
+            var hoverBrush = ThemeService.Brush(primary ? _palette.Accent : _palette.TileHover, primary ? 0.88 : (_palette.IsDark ? 0.58 : 0.76));
+            var hover = new Trigger { Property = Button.IsMouseOverProperty, Value = true };
+            hover.Setters.Add(new Setter(Border.BackgroundProperty, hoverBrush, "Chrome"));
+            template.Triggers.Add(hover);
+
+            var pressedBrush = ThemeService.Brush(primary ? _palette.Accent : _palette.TileHover, primary ? 0.72 : (_palette.IsDark ? 0.72 : 0.96));
+            var pressed = new Trigger { Property = Button.IsPressedProperty, Value = true };
+            pressed.Setters.Add(new Setter(Border.BackgroundProperty, pressedBrush, "Chrome"));
+            template.Triggers.Add(pressed);
+
+            return template;
         }
 
         private class DisplayOption

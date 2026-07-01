@@ -6,6 +6,7 @@ namespace TidyDock
     public class ThemePalette
     {
         public bool IsDark { get; set; }
+        public Color WindowBackground { get; set; }
         public Color DockBackground { get; set; }
         public Color DockBorder { get; set; }
         public Color PanelBackground { get; set; }
@@ -16,6 +17,8 @@ namespace TidyDock
         public Color ControlBackground { get; set; }
         public Color TileBackground { get; set; }
         public Color TileHover { get; set; }
+        public Color Accent { get; set; }
+        public Color AccentText { get; set; }
         public Color Shadow { get; set; }
     }
 
@@ -28,6 +31,7 @@ namespace TidyDock
                 return new ThemePalette
                 {
                     IsDark = true,
+                    WindowBackground = Color.FromRgb(24, 29, 37),
                     DockBackground = Color.FromRgb(36, 42, 52),
                     DockBorder = Color.FromArgb(130, 255, 255, 255),
                     PanelBackground = Color.FromRgb(35, 41, 52),
@@ -38,6 +42,8 @@ namespace TidyDock
                     ControlBackground = Color.FromRgb(48, 56, 70),
                     TileBackground = Color.FromRgb(50, 58, 72),
                     TileHover = Color.FromRgb(66, 76, 94),
+                    Accent = Color.FromRgb(78, 156, 222),
+                    AccentText = Color.FromRgb(255, 255, 255),
                     Shadow = Color.FromRgb(0, 0, 0)
                 };
             }
@@ -45,6 +51,7 @@ namespace TidyDock
             return new ThemePalette
             {
                 IsDark = false,
+                WindowBackground = Color.FromRgb(243, 247, 250),
                 DockBackground = Color.FromRgb(241, 246, 250),
                 DockBorder = Color.FromArgb(135, 255, 255, 255),
                 PanelBackground = Color.FromRgb(248, 250, 252),
@@ -55,6 +62,8 @@ namespace TidyDock
                 ControlBackground = Color.FromRgb(255, 255, 255),
                 TileBackground = Color.FromRgb(255, 255, 255),
                 TileHover = Color.FromRgb(255, 255, 255),
+                Accent = Color.FromRgb(39, 118, 184),
+                AccentText = Color.FromRgb(255, 255, 255),
                 Shadow = Color.FromRgb(31, 41, 55)
             };
         }
