@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added `src/TidyDock.WinForms`, a Windows-only WinForms rewrite for v0.2.
+- Added separate v0.2 config storage under `%APPDATA%\TidyDock\winforms`.
+- Added WinForms portable, installer, verification, and memory measurement scripts.
+- Measured the WinForms preview at about 9.94 MB idle private memory in a short launch baseline.
 - Prepare the `0.2.0` development plan and issue backlog.
 
 ## 0.1.1 - 2026-07-01

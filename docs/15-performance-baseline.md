@@ -65,6 +65,28 @@ powershell -ExecutionPolicy Bypass -File '.\src\TidyDock\scripts\Measure-Memory.
 
 Private memory decreased by about 29.41 MB, from 101.69 MB to 72.29 MB.
 
+### WinForms v0.2 Preview
+
+Command:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Measure-Memory.ps1' `
+  -Launch `
+  -StopAfter `
+  -WarmupSeconds 15 `
+  -Samples 4 `
+  -IntervalSeconds 3
+```
+
+| Metric | Average | Minimum | Maximum |
+| --- | ---: | ---: | ---: |
+| Working set | 48.34 MB | 48.34 MB | 48.34 MB |
+| Private memory | 9.95 MB | 9.92 MB | 9.96 MB |
+| Handles | 314 | 314 | 314 |
+| CPU seconds | 0.28 | 0.28 | 0.28 |
+
+The WinForms rewrite preview reduces idle private memory by about 62.34 MB compared with the optimized WPF v0.1.1 measurement.
+
 ## Interpretation
 
 Idle CPU is good in this baseline.
@@ -77,6 +99,7 @@ The first optimization confirms that custom image icons were a major source of p
 
 - The baseline CSV is stored at `src/TidyDock/dist/memory-baseline.csv`.
 - The optimized CSV is stored at `src/TidyDock/dist/memory-after-icon-window-optimization.csv`.
+- The WinForms preview CSV is stored at `src/TidyDock.WinForms/dist/memory-winforms.csv`.
 - `dist` is ignored by Git, so important summaries should be copied into this document.
 - A quick attempt to parse the current user config with PowerShell JSON parsing failed, suggesting the local config may contain a malformed or encoding-damaged string. Config validation and recovery should be included in the first refactor phase.
 

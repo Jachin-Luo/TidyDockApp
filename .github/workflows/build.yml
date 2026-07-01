@@ -16,15 +16,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build installer and portable package
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build WPF installer and portable package
         shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Build-Installer.ps1"
 
-      - name: Verify portable package
+      - name: Verify WPF portable package
         shell: pwsh
         run: |
           powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Test-Portable.ps1" -SkipLaunch
+
+      - name: Build WinForms installer and portable package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Build-Installer.ps1"
+
+      - name: Verify WinForms portable package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Test-Portable.ps1" -SkipLaunch
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -33,5 +48,7 @@ jobs:
           path: |
             src/TidyDock/dist/TidyDockSetup.exe
             src/TidyDock/dist/TidyDock-portable.zip
+            src/TidyDock.WinForms/dist/TidyDockWinFormsSetup.exe
+            src/TidyDock.WinForms/dist/TidyDock-winforms-portable.zip
 
 
