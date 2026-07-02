@@ -87,6 +87,12 @@ powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Measur
 
 The WinForms rewrite preview reduces idle private memory by about 62.34 MB compared with the optimized WPF v0.1.1 measurement.
 
+After the first WinForms UI polish pass, a short 4-sample check measured about 18.53 MB idle private memory. The visual polish did not materially change the lower-resource direction.
+
+After the transparent glass UI and Chinese localization pass, a short 4-sample check measured about 18.54 MB idle private memory, with stable CPU seconds during the sample. The added DWM backdrop and lightweight custom controls did not materially increase idle private memory.
+
+After adding the WinForms folder Flyout and folder panel settings, a short 4-sample idle check measured about 18.87 MB private memory, with stable CPU seconds during the sample. The folder service remains lazy and does not scan folders until a folder Dock item is clicked.
+
 ## Interpretation
 
 Idle CPU is good in this baseline.

@@ -1,31 +1,57 @@
-# Changelog
+# 更新日志
 
-## Unreleased
+## 未发布
 
-- Added `src/TidyDock.WinForms`, a Windows-only WinForms rewrite for v0.2.
-- Added separate v0.2 config storage under `%APPDATA%\TidyDock\winforms`.
-- Added WinForms portable, installer, verification, and memory measurement scripts.
-- Measured the WinForms preview at about 9.94 MB idle private memory in a short launch baseline.
-- Prepare the `0.2.0` development plan and issue backlog.
+- 新增 `src/TidyDock.WinForms`，作为 v0.2 的 Windows-only WinForms 重写版本。
+- 新增 v0.2 独立配置目录：`%APPDATA%\TidyDock\winforms`。
+- 新增 WinForms portable、安装包、验证脚本和内存测量脚本。
+- 记录 WinForms 预览版短启动基线，空闲 private memory 约 9.94 MB。
+- 打磨 WinForms Dock 和设置页视觉：中性深色配色、圆角设置分区、更清晰的按钮和非紫色透明窗口绘制。
+- 将 WinForms UI 改为更透明的玻璃 Dock、半透明设置页背景、轻量自绘控件和中文可见文案。
+- 将 WinForms Dock 切换为 `UpdateLayeredWindow` 分层窗口绘制，使用真实 per-pixel alpha 透明，而不是色键透明。
+- 新增文件夹 Flyout：文件夹 Dock 项支持直接子项网格、进入子文件夹、返回、资源管理器打开和文件夹面板设置。
+- 明确 v0.2 产品边界：TidyDock 是手动管理的轻量启动器，不监控进程、不显示运行状态、不切换窗口、不索引文件夹。
+- 优化 Dock 悬停放大：加入短时 ease-out 过渡和相邻图标连续缩放。
+- 提升 Dock 图标质量：使用高分辨率 Shell 图标，解析 `.lnk` 目标，避免快捷方式箭头叠加。
+- 新增文件夹自定义图标：通过 `DockItem.IconPath` 保存，图标资源复制到 v0.2 app data，并在设置页提供更换/恢复默认图标操作。
+- 新增文件夹逐项打开方式：支持 `flyout` 和 `explorer`，文件夹快捷方式会规范为文件夹 Dock 项。
+- 新增默认关闭的 `EnableDragReorder` 设置和中文开关，避免误触导致 Dock 项重新排序。
+- 优化玻璃 Dock 背景：高透明度下使用更轻的填充、高光、阴影和描边。
+- 修复设置页透明子控件导致的重绘残影、黑块和控件重叠。
+- 修复当前用户安装脚本和安装器：Windows 开始菜单快捷方式现在指向 WinForms 安装目录。
+- 建立文档收尾流程：用户反馈和已完成修复同步记录到 `docs/14-feedback-log.md` 与 `docs/13-changelog.md`。
+- 新增一键圆角图标样式：未设置自定义图标的 Dock 项可统一套上扁平化圆角矩形底板，并可一键恢复原始样式；用户自定义图标保持原样。
+- 优化一键圆角图标底板：移除明显上下分层的下半阴影，改为更轻、更统一的扁平渐变。
+- 继续打磨圆角图标底板：改用稳定柔和配色，避免文件夹等图标与底板同色叠加；移除额外投影和高光叠层。
+- 将一键圆角图标底板统一为白色系，更接近 macOS 常见的白色图标容器方案。
+- 放大一键圆角图标底板内的前景图标，并新增 `WrapCustomIcons` 开关，允许用户选择是否给自定义图标也套圆角背景。
+- 修复设置页修改任意值后滚动位置跳回顶部的问题。
+- 新增“添加此电脑”预设入口，支持将 Windows Shell 虚拟位置加入 Dock。
+- 修复 Shell 虚拟位置图标在 Dock 中倒置的问题。
+- 修复文件夹弹窗图标倒置和绿色杂边问题，并为超长文件名增加省略号与悬浮完整名称提示。
+- 修复旧配置仍依赖桌面快捷方式的问题：`.lnk` 和 `.url` 会统一复制到 v0.2 数据目录。
+- 修复文件夹弹窗滚动到底后内容超出底部边界的问题。
+- 进一步收紧文件夹弹窗快速滚动裁剪，并修复安装版托盘图标路径兼容问题。
+- 准备 `0.2.0` 开发计划和问题积压。
 
 ## 0.1.1 - 2026-07-01
 
-- Added process documentation for product vision, PRD, user flows, technical design, data model, tests, release, privacy, and refactor planning.
-- Documented refactor direction focused on measurable memory reduction before framework migration.
-- Added first performance baseline summary and repeatable memory measurement script.
-- Reduced idle private memory from about 101.69 MB to 72.29 MB by decoding custom bitmap icons near display size and avoiding duplicate startup rendering.
-- Hid the Dock and auto-hide hot zone from the Alt+Tab application switcher.
-- Added delayed restore after Windows Show Desktop minimizes the Dock.
-- Imported `.lnk` shortcuts into the local TidyDock data directory so Dock items do not depend on desktop shortcut files.
-- First usable Windows WPF build.
-- Manual Dock items.
-- Folder panel.
-- Settings window.
-- Tray menu.
-- Portable package.
-- Current-user installer.
-- Local config, icon cache, and error log.
+- 新增产品愿景、PRD、用户流程、技术设计、数据模型、测试、发布、隐私和重构规划等过程文档。
+- 记录重构方向：先建立可测量的内存基线，再决定是否迁移框架。
+- 新增第一版性能基线总结和可重复执行的内存测量脚本。
+- 通过按显示尺寸解码自定义位图图标、避免启动时重复渲染，将空闲 private memory 从约 101.69 MB 降至约 72.29 MB。
+- 将 Dock 和自动隐藏热区从 Alt+Tab 应用切换器中隐藏。
+- 增加 Windows“显示桌面”最小化 Dock 后的延迟恢复逻辑。
+- 将 `.lnk` 快捷方式导入到本地 TidyDock 数据目录，避免 Dock 项依赖桌面快捷方式文件。
+- 完成第一版可用的 Windows WPF 构建。
+- 支持手动 Dock 项。
+- 支持文件夹面板。
+- 支持设置窗口。
+- 支持托盘菜单。
+- 支持 portable 包。
+- 支持当前用户安装器。
+- 支持本地配置、图标缓存和错误日志。
 
 ## 0.1.0
 
-- Early preview tag before the repository restructuring and release documentation pass.
+- 仓库结构整理和发布文档补齐前的早期预览标签。

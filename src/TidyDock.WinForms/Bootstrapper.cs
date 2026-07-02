@@ -36,9 +36,10 @@ internal static class Bootstrapper
         var config = configService.Load();
         var iconService = new IconService(paths, log);
         var shortcutService = new ShortcutService(paths);
+        var folderService = new FolderService();
         var startupService = new StartupService();
         var layoutService = new DockLayoutService();
-        var dockForm = new DockForm(config, configService, iconService, shortcutService, startupService, layoutService, log);
+        var dockForm = new DockForm(config, configService, iconService, shortcutService, folderService, startupService, layoutService, log);
         return new AppHost(dockForm, iconService) { Log = log };
     }
 }

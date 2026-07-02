@@ -10,4 +10,9 @@ if (Test-Path $target) {
     Remove-Item -LiteralPath $target -Recurse -Force
 }
 
+$startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\TidyDock"
+if (Test-Path $startMenu) {
+    Remove-Item -LiteralPath $startMenu -Recurse -Force
+}
+
 Write-Host "TidyDock WinForms removed for current user."

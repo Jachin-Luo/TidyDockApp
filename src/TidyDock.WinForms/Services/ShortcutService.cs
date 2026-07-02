@@ -11,7 +11,7 @@ internal sealed class ShortcutService
 
     public string ImportIfShortcut(string path)
     {
-        if (!File.Exists(path) || !string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase))
+        if (!IsShortcutFile(path))
         {
             return path;
         }
@@ -21,5 +21,24 @@ internal sealed class ShortcutService
         var target = Path.Combine(_paths.Shortcuts, $"{Guid.NewGuid():N}-{safeName}");
         File.Copy(path, target, true);
         return target;
+    }
+
+    public static bool IsShortcutFile(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        return Path.GetExtension(path).ToLowerInvariant() switch
+        {
+            ".lnk" or ".url" => true,
+            _ => false
+        };
+    }
+
+    public static string ResolveShortcutTarget(string path)
+    {
+        return IconService.ResolveShortcutTarget(path);
     }
 }

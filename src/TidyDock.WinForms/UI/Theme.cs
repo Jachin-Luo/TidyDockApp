@@ -13,6 +13,8 @@ internal sealed class ThemePalette
     public Color Border { get; init; }
     public Color Accent { get; init; }
     public Color AccentText { get; init; }
+    public Color Danger { get; init; }
+    public Color SurfaceLine { get; init; }
     public Color DockTop { get; init; }
     public Color DockBottom { get; init; }
     public Color Shadow { get; init; }
@@ -27,16 +29,18 @@ internal static class Theme
             return new ThemePalette
             {
                 IsDark = true,
-                Window = Color.FromArgb(24, 29, 37),
-                Panel = Color.FromArgb(35, 41, 52),
-                PanelAlt = Color.FromArgb(48, 56, 70),
+                Window = Color.FromArgb(25, 27, 31),
+                Panel = Color.FromArgb(36, 39, 45),
+                PanelAlt = Color.FromArgb(49, 53, 60),
                 Text = Color.FromArgb(238, 242, 247),
-                MutedText = Color.FromArgb(174, 184, 198),
-                Border = Color.FromArgb(92, 102, 120),
-                Accent = Color.FromArgb(78, 156, 222),
+                MutedText = Color.FromArgb(170, 178, 190),
+                Border = Color.FromArgb(78, 86, 99),
+                Accent = Color.FromArgb(34, 184, 166),
                 AccentText = Color.White,
-                DockTop = Color.FromArgb(82, 94, 116),
-                DockBottom = Color.FromArgb(22, 27, 35),
+                Danger = Color.FromArgb(226, 92, 92),
+                SurfaceLine = Color.FromArgb(104, 112, 126),
+                DockTop = Color.FromArgb(78, 88, 104),
+                DockBottom = Color.FromArgb(23, 25, 30),
                 Shadow = Color.Black
             };
         }
@@ -50,8 +54,10 @@ internal static class Theme
             Text = Color.FromArgb(23, 32, 51),
             MutedText = Color.FromArgb(91, 100, 116),
             Border = Color.FromArgb(194, 209, 222),
-            Accent = Color.FromArgb(39, 118, 184),
+            Accent = Color.FromArgb(16, 132, 117),
             AccentText = Color.White,
+            Danger = Color.FromArgb(199, 71, 71),
+            SurfaceLine = Color.FromArgb(217, 226, 235),
             DockTop = Color.White,
             DockBottom = Color.FromArgb(225, 235, 244),
             Shadow = Color.FromArgb(31, 41, 55)
