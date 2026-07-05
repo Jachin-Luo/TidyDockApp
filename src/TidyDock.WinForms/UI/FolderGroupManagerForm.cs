@@ -13,7 +13,12 @@ internal sealed class FolderGroupManagerForm : Form
     private readonly List<FolderEntry> _entries = [];
     private readonly ListBox _groupList = new();
     private readonly ListView _entryList = new();
+    private readonly TextBox _searchBox = new();
+    private readonly ToggleSwitch _showUngroupedOnly = new();
+    private readonly ToggleSwitch _showCurrentGroupOnly = new();
     private readonly Label _status = new();
+    private bool _updatingFilters;
+    private string _entryReadNote = "";
 
     public FolderGroupManagerForm(DockItem item, FolderPanelSettings settings, ThemePalette palette)
     {
@@ -112,6 +117,18 @@ internal sealed class FolderGroupManagerForm : Form
         _groupList.BackColor = _palette.PanelAlt;
         _groupList.ForeColor = _palette.Text;
         _groupList.BorderStyle = BorderStyle.None;
+        _groupList.SelectedIndexChanged += delegate
+        {
+            UpdateFilterControlState();
+            if (_showCurrentGroupOnly.Checked)
+            {
+                RefreshEntries();
+            }
+            else
+            {
+                UpdateEntryRows();
+            }
+        };
         panel.Controls.Add(_groupList, 0, 1);
 
         var buttons = new FlowLayoutPanel
@@ -135,23 +152,25 @@ internal sealed class FolderGroupManagerForm : Form
         var panel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 4,
+            RowCount = 5,
             ColumnCount = 1,
             BackColor = _palette.Panel,
             Padding = new Padding(10),
             Margin = new Padding(0)
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
 
         panel.Controls.Add(MakeTitle("\u5f53\u524d\u6587\u4ef6\u5939\u9879\u76ee"), 0, 0);
+        panel.Controls.Add(BuildFilterRow(), 0, 1);
         _status.Dock = DockStyle.Fill;
         _status.ForeColor = _palette.MutedText;
         _status.BackColor = _palette.Panel;
         _status.TextAlign = ContentAlignment.MiddleLeft;
-        panel.Controls.Add(_status, 0, 1);
+        panel.Controls.Add(_status, 0, 2);
 
         _entryList.Dock = DockStyle.Fill;
         _entryList.View = View.Details;
@@ -165,7 +184,8 @@ internal sealed class FolderGroupManagerForm : Form
         _entryList.Columns.Add("\u540d\u79f0", 245);
         _entryList.Columns.Add("\u7c7b\u578b", 72);
         _entryList.Columns.Add("\u6240\u5c5e\u5206\u7ec4", 150);
-        panel.Controls.Add(_entryList, 0, 2);
+        _entryList.ItemChecked += delegate { UpdateEntryStatus(); };
+        panel.Controls.Add(_entryList, 0, 3);
 
         var buttons = new FlowLayoutPanel
         {
@@ -177,8 +197,81 @@ internal sealed class FolderGroupManagerForm : Form
         buttons.Controls.Add(MakeButton("\u79fb\u51fa\u5206\u7ec4", RemoveSelectedFromGroups));
         buttons.Controls.Add(MakeButton("\u5168\u9009", CheckAllEntries));
         buttons.Controls.Add(MakeButton("\u6e05\u7a7a\u9009\u62e9", ClearEntryChecks));
-        panel.Controls.Add(buttons, 0, 3);
+        panel.Controls.Add(buttons, 0, 4);
         return panel;
+    }
+
+    private Control BuildFilterRow()
+    {
+        var row = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            BackColor = _palette.Panel,
+            Margin = new Padding(0, 0, 0, 6)
+        };
+        row.Controls.Add(new Label
+        {
+            Text = "\u641c\u7d22",
+            Width = 42,
+            Height = 30,
+            ForeColor = _palette.MutedText,
+            BackColor = _palette.Panel,
+            TextAlign = ContentAlignment.MiddleLeft
+        });
+
+        _searchBox.Width = 180;
+        _searchBox.Height = 28;
+        _searchBox.BorderStyle = BorderStyle.FixedSingle;
+        _searchBox.BackColor = _palette.PanelAlt;
+        _searchBox.ForeColor = _palette.Text;
+        _searchBox.Margin = new Padding(0, 2, 12, 0);
+        _searchBox.TextChanged += delegate { RefreshEntries(); };
+        row.Controls.Add(_searchBox);
+
+        _showUngroupedOnly.Text = "\u53ea\u770b\u672a\u5206\u7ec4";
+        _showUngroupedOnly.Width = 138;
+        _showUngroupedOnly.Palette = _palette;
+        _showUngroupedOnly.BackColor = _palette.Panel;
+        _showUngroupedOnly.CheckedChanged += delegate
+        {
+            if (_updatingFilters)
+            {
+                return;
+            }
+
+            if (_showUngroupedOnly.Checked && _showCurrentGroupOnly.Checked)
+            {
+                _updatingFilters = true;
+                _showCurrentGroupOnly.Checked = false;
+                _updatingFilters = false;
+            }
+            RefreshEntries();
+        };
+        row.Controls.Add(_showUngroupedOnly);
+
+        _showCurrentGroupOnly.Text = "\u53ea\u770b\u5f53\u524d\u5206\u7ec4";
+        _showCurrentGroupOnly.Width = 150;
+        _showCurrentGroupOnly.Palette = _palette;
+        _showCurrentGroupOnly.BackColor = _palette.Panel;
+        _showCurrentGroupOnly.CheckedChanged += delegate
+        {
+            if (_updatingFilters)
+            {
+                return;
+            }
+
+            if (_showCurrentGroupOnly.Checked && _showUngroupedOnly.Checked)
+            {
+                _updatingFilters = true;
+                _showUngroupedOnly.Checked = false;
+                _updatingFilters = false;
+            }
+            RefreshEntries();
+        };
+        row.Controls.Add(_showCurrentGroupOnly);
+        return row;
     }
 
     private void LoadEntries()
@@ -186,15 +279,16 @@ internal sealed class FolderGroupManagerForm : Form
         var result = new FolderService().Read(_item.Target, _settings);
         if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
         {
-            _status.Text = result.ErrorMessage;
+            _entryReadNote = result.ErrorMessage;
+            _status.Text = _entryReadNote;
             return;
         }
 
         _entries.Clear();
         _entries.AddRange(result.Entries);
-        _status.Text = result.IsTruncated
+        _entryReadNote = result.IsTruncated
             ? string.Format("\u4ec5\u8bfb\u53d6\u524d {0} \u9879\uff0c\u8d85\u51fa\u90e8\u5206\u4e0d\u5728\u6b64\u5904\u7ba1\u7406", _settings.MaxItems)
-            : string.Format("\u5df2\u8bfb\u53d6 {0} \u9879", result.Entries.Count);
+            : "";
     }
 
     private void RefreshGroups()
@@ -216,20 +310,39 @@ internal sealed class FolderGroupManagerForm : Form
         {
             _groupList.SelectedIndex = Math.Clamp(selected, 0, _groups.Count - 1);
         }
+        UpdateFilterControlState();
     }
 
     private void RefreshEntries()
     {
+        var topKey = (_entryList.TopItem?.Tag as FolderEntry)?.EntryKey;
+        var focusedKey = (_entryList.FocusedItem?.Tag as FolderEntry)?.EntryKey;
+        var selectedKeys = _entryList.SelectedItems
+            .Cast<ListViewItem>()
+            .Select(row => (row.Tag as FolderEntry)?.EntryKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var checkedKeys = _entryList.CheckedItems
+            .Cast<ListViewItem>()
+            .Select(row => (row.Tag as FolderEntry)?.EntryKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var entries = FilteredEntries().ToList();
+
         _entryList.BeginUpdate();
         _entryList.Items.Clear();
-        foreach (var entry in _entries)
+        foreach (var entry in entries)
         {
             var row = new ListViewItem(entry.Name) { Tag = entry, ToolTipText = entry.Path };
             row.SubItems.Add(entry.IsDirectory ? "\u6587\u4ef6\u5939" : "\u6587\u4ef6");
             row.SubItems.Add(GetGroupName(entry.EntryKey));
+            row.Checked = checkedKeys.Contains(entry.EntryKey);
+            row.Selected = selectedKeys.Contains(entry.EntryKey);
             _entryList.Items.Add(row);
         }
         _entryList.EndUpdate();
+        RestoreEntryListPosition(topKey, focusedKey);
+        UpdateEntryStatus(entries.Count);
     }
 
     private void AddGroup(object? sender, EventArgs e)
@@ -273,7 +386,7 @@ internal sealed class FolderGroupManagerForm : Form
 
         group.Name = name;
         RefreshGroups();
-        UpdateEntryRows();
+        RefreshEntryAssignments();
     }
 
     private void DeleteGroup(object? sender, EventArgs e)
@@ -286,7 +399,7 @@ internal sealed class FolderGroupManagerForm : Form
 
         _groups.RemoveAt(index);
         RefreshGroups();
-        UpdateEntryRows();
+        RefreshEntryAssignments();
     }
 
     private void MoveGroup(int delta)
@@ -330,7 +443,7 @@ internal sealed class FolderGroupManagerForm : Form
             changedKeys.Add(entry.EntryKey);
         }
 
-        UpdateEntryRows(changedKeys);
+        RefreshEntryAssignments(changedKeys);
         ClearEntryChecks();
     }
 
@@ -352,8 +465,82 @@ internal sealed class FolderGroupManagerForm : Form
             }
         }
 
-        UpdateEntryRows(changedKeys);
+        RefreshEntryAssignments(changedKeys);
         ClearEntryChecks();
+    }
+
+    private void RefreshEntryAssignments(IEnumerable<string>? entryKeys = null)
+    {
+        if (HasActiveEntryFilter())
+        {
+            RefreshEntries();
+            return;
+        }
+
+        UpdateEntryRows(entryKeys);
+    }
+
+    private IEnumerable<FolderEntry> FilteredEntries()
+    {
+        var query = _searchBox.Text.Trim();
+        var currentGroup = SelectedGroup();
+        var onlyUngrouped = _showUngroupedOnly.Checked;
+        var onlyCurrentGroup = _showCurrentGroupOnly.Checked && currentGroup is not null;
+
+        foreach (var entry in _entries)
+        {
+            if (!string.IsNullOrWhiteSpace(query)
+                && !entry.Name.Contains(query, StringComparison.CurrentCultureIgnoreCase)
+                && !entry.Path.Contains(query, StringComparison.CurrentCultureIgnoreCase))
+            {
+                continue;
+            }
+
+            if (onlyUngrouped && !string.Equals(GetGroupName(entry.EntryKey), "\u672a\u5206\u7ec4", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (onlyCurrentGroup && !currentGroup!.EntryKeys.Contains(entry.EntryKey, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            yield return entry;
+        }
+    }
+
+    private bool HasActiveEntryFilter()
+    {
+        return !string.IsNullOrWhiteSpace(_searchBox.Text)
+            || _showUngroupedOnly.Checked
+            || _showCurrentGroupOnly.Checked;
+    }
+
+    private void UpdateEntryStatus(int? visibleCount = null)
+    {
+        if (_status.IsDisposed)
+        {
+            return;
+        }
+
+        var visible = visibleCount ?? _entryList.Items.Count;
+        var checkedCount = _entryList.CheckedItems.Count;
+        var note = string.IsNullOrWhiteSpace(_entryReadNote) ? "" : "\uff0c" + _entryReadNote;
+        _status.Text = $"\u663e\u793a {visible} / {_entries.Count} \u9879\uff0c\u5df2\u52fe\u9009 {checkedCount} \u9879{note}";
+    }
+
+    private void UpdateFilterControlState()
+    {
+        var hasGroup = SelectedGroup() is not null;
+        _showCurrentGroupOnly.Enabled = hasGroup;
+        if (!hasGroup && _showCurrentGroupOnly.Checked)
+        {
+            _updatingFilters = true;
+            _showCurrentGroupOnly.Checked = false;
+            _updatingFilters = false;
+            RefreshEntries();
+        }
     }
 
     private List<ListViewItem> TargetEntryRows()
@@ -374,6 +561,7 @@ internal sealed class FolderGroupManagerForm : Form
             row.Checked = true;
         }
         _entryList.EndUpdate();
+        UpdateEntryStatus();
     }
 
     private void ClearEntryChecks(object? sender, EventArgs e)
@@ -390,6 +578,7 @@ internal sealed class FolderGroupManagerForm : Form
             row.Selected = false;
         }
         _entryList.EndUpdate();
+        UpdateEntryStatus();
     }
 
     private void UpdateEntryRows(IEnumerable<string>? entryKeys = null)
@@ -421,6 +610,7 @@ internal sealed class FolderGroupManagerForm : Form
         _entryList.EndUpdate();
 
         RestoreEntryListPosition(topKey, focusedKey);
+        UpdateEntryStatus();
     }
 
     private void RestoreEntryListPosition(string? topKey, string? focusedKey)

@@ -286,12 +286,22 @@ internal sealed class DockForm : Form
     {
         var bounds = GetDockBackgroundBounds();
         var opacity = Math.Clamp(_config.Dock.Opacity, 0, 1);
+        var highContrast = _config.Dock.HighContrastDock;
         var shadowOpacity = _palette.IsDark ? 0.10 + (opacity * 0.18) : 0.06 + (opacity * 0.12);
         var topOpacity = opacity * (_palette.IsDark ? 0.24 : 0.3);
         var bottomOpacity = opacity * (_palette.IsDark ? 0.34 : 0.26);
         var borderOpacity = 0.18 + (opacity * (_palette.IsDark ? 0.24 : 0.34));
         var shineOpacity = opacity * (_palette.IsDark ? 0.10 : 0.22);
         var innerOpacity = opacity * (_palette.IsDark ? 0.08 : 0.16);
+        if (highContrast)
+        {
+            shadowOpacity = Math.Max(shadowOpacity + 0.08, _palette.IsDark ? 0.24 : 0.18);
+            topOpacity = Math.Min(0.48, topOpacity + 0.06);
+            bottomOpacity = Math.Min(0.54, bottomOpacity + 0.08);
+            borderOpacity = Math.Min(0.82, Math.Max(borderOpacity + 0.22, 0.48));
+            innerOpacity = Math.Min(0.36, Math.Max(innerOpacity + 0.08, 0.18));
+            shineOpacity = Math.Min(0.26, shineOpacity + 0.04);
+        }
 
         using var shadow = RoundedRect(new Rectangle(bounds.X + 3, bounds.Y + 6, bounds.Width - 6, bounds.Height - 4), _config.Dock.CornerRadius);
         using var shadowBrush = new SolidBrush(WithAlpha(_palette.Shadow, shadowOpacity));
@@ -1023,29 +1033,126 @@ internal sealed class DockForm : Form
     private void ShowItemMenu(int index, Point location)
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("\u8bbe\u7f6e", null, delegate { ShowSettings(); });
+        var item = index >= 0 && index < _config.Items.Count ? _config.Items[index] : null;
+        if (item is not null)
+        {
+            if (!item.IsSeparator)
+            {
+                menu.Items.Add("\u6253\u5f00", null, delegate { ActivateItem(item, GetItemRect(index)); });
+            }
+            if (IsBrokenItem(item))
+            {
+                menu.Items.Add("\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807", null, delegate { RelocateItemTarget(item); });
+            }
+            if (string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
+            {
+                menu.Items.Add("\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u6253\u5f00", null, delegate { OpenFolderInExplorer(item); });
+                var openBehavior = new ToolStripMenuItem("\u6253\u5f00\u65b9\u5f0f");
+                var explorer = string.Equals(item.OpenBehavior, DockOpenBehaviors.Explorer, StringComparison.OrdinalIgnoreCase);
+                openBehavior.DropDownItems.Add(new ToolStripMenuItem("\u60ac\u6d6e\u9762\u677f", null, delegate { SetFolderOpenBehavior(item, DockOpenBehaviors.Flyout); }) { Checked = !explorer });
+                openBehavior.DropDownItems.Add(new ToolStripMenuItem("\u8d44\u6e90\u7ba1\u7406\u5668", null, delegate { SetFolderOpenBehavior(item, DockOpenBehaviors.Explorer); }) { Checked = explorer });
+                menu.Items.Add(openBehavior);
+                menu.Items.Add("\u7ba1\u7406\u5206\u7ec4", null, delegate { ManageFolderGroups(item); });
+            }
+            menu.Items.Add("\u91cd\u547d\u540d", null, delegate { RenameDockItem(item); });
+            if (!item.IsSeparator)
+            {
+                menu.Items.Add("\u66f4\u6362\u56fe\u6807", null, delegate { ChangeItemIcon(item); });
+                menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", null, delegate { ResetItemIcon(item); });
+            }
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add("\u79fb\u9664", null, delegate { ConfirmAndRemoveItem(index); });
+            menu.Items.Add(new ToolStripSeparator());
+        }
+
         menu.Items.Add("\u6dfb\u52a0\u5e94\u7528/\u6587\u4ef6", null, delegate { AddAppOrFile(); });
         menu.Items.Add("\u6dfb\u52a0\u6587\u4ef6\u5939", null, delegate { AddFolder(); });
         menu.Items.Add("\u6dfb\u52a0\u7f51\u5740", null, delegate { AddUrl(); });
         menu.Items.Add("\u6dfb\u52a0\u6b64\u7535\u8111", null, delegate { AddThisPc(); });
-        if (index >= 0)
-        {
-            menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("\u6253\u5f00", null, delegate { ActivateItem(_config.Items[index], GetItemRect(index)); });
-            if (IsBrokenItem(_config.Items[index]))
-            {
-                menu.Items.Add("\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807", null, delegate { RelocateItemTarget(_config.Items[index]); });
-            }
-            if (string.Equals(_config.Items[index].Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
-            {
-                menu.Items.Add("\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u6253\u5f00", null, delegate { OpenFolderInExplorer(_config.Items[index]); });
-            }
-            menu.Items.Add("\u79fb\u9664", null, delegate
-            {
-                ConfirmAndRemoveItem(index);
-            });
-        }
+        menu.Items.Add("\u6dfb\u52a0\u5206\u9694\u7b26", null, delegate { AddSeparator(); });
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("\u8bbe\u7f6e", null, delegate { ShowSettings(); });
         menu.Show(this, location);
+    }
+
+    private void RenameDockItem(DockItem item)
+    {
+        using var dialog = new InputDialog("\u91cd\u547d\u540d", "\u540d\u79f0", item.Name, _palette);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var name = dialog.Value.Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        item.Name = name;
+        ApplySettings();
+    }
+
+    private void ChangeItemIcon(DockItem item)
+    {
+        if (item.IsSeparator)
+        {
+            return;
+        }
+
+        using var dialog = new OpenFileDialog
+        {
+            Title = "\u9009\u62e9\u81ea\u5b9a\u4e49\u56fe\u6807",
+            Filter = "\u56fe\u6807\u548c\u56fe\u7247|*.png;*.ico;*.jpg;*.jpeg;*.bmp;*.gif;*.webp;*.exe;*.lnk|\u6240\u6709\u6587\u4ef6|*.*"
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        item.IconPath = _iconService.ImportCustomIcon(dialog.FileName);
+        _iconService.ClearMemoryCache();
+        ApplySettings();
+    }
+
+    private void ResetItemIcon(DockItem item)
+    {
+        if (item.IsSeparator)
+        {
+            return;
+        }
+
+        item.IconPath = "";
+        _iconService.ClearMemoryCache();
+        ApplySettings();
+    }
+
+    private void SetFolderOpenBehavior(DockItem item, string behavior)
+    {
+        if (!string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        item.OpenBehavior = behavior;
+        ApplySettings();
+    }
+
+    private void ManageFolderGroups(DockItem item)
+    {
+        if (!string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        using var dialog = new FolderGroupManagerForm(item, _config.FolderPanel, _palette);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        item.FolderGroups = dialog.Groups;
+        ApplySettings();
     }
 
     private void ConfirmAndRemoveItem(int index)
@@ -1077,7 +1184,6 @@ internal sealed class DockForm : Form
         var menu = new ContextMenuStrip();
         menu.Items.Add(Visible ? "\u9690\u85cf Dock" : "\u663e\u793a Dock", null, delegate { ToggleVisible(); });
         menu.Items.Add("\u8bbe\u7f6e", null, delegate { ShowSettings(); });
-        menu.Items.Add("\u6253\u5f00\u914d\u7f6e\u6587\u4ef6\u5939", null, delegate { Process.Start(new ProcessStartInfo(_configService.AppDirectory) { UseShellExecute = true }); });
         menu.Items.Add("\u9000\u51fa", null, delegate { Application.Exit(); });
         return menu;
     }

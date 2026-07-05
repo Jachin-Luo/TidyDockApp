@@ -220,6 +220,7 @@ internal sealed class SettingsForm : Form
             panel.Controls.Add(MakeNumber("\u5706\u89d2\u534a\u5f84", _config.Dock.CornerRadius, 6, 40, "\u50cf\u7d20", value => { _config.Dock.CornerRadius = value; }));
             panel.Controls.Add(MakePercent("\u900f\u660e\u5ea6", _config.Dock.Opacity, value => { _config.Dock.Opacity = value; }));
             panel.Controls.Add(MakePercent("\u60ac\u505c\u653e\u5927", _config.Dock.Magnification - 1, value => { _config.Dock.Magnification = 1 + value; }));
+            panel.Controls.Add(MakeCheck("\u589e\u5f3a\u5e95\u5ea7\u5bf9\u6bd4\u5ea6", _config.Dock.HighContrastDock, value => { _config.Dock.HighContrastDock = value; }));
         });
 
         AddSection(root, "\u884c\u4e3a", panel =>
@@ -624,7 +625,7 @@ internal sealed class SettingsForm : Form
             Build();
             RestoreScrollLater(scrollY);
             MarkDraftChanged();
-            MessageBox.Show("\u5907\u4efd\u5df2\u5bfc\u5165\u5230\u8349\u7a3f\u3002", "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("\u5907\u4efd\u5df2\u5bfc\u5165\u5230\u8349\u7a3f\uff0c\u8fd8\u9700\u8981\u70b9\u51fb\u201c\u9884\u89c8\u5230 Dock\u201d\u6216\u201c\u4fdd\u5b58\u5e76\u5173\u95ed\u201d\u624d\u4f1a\u751f\u6548\u3002", "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
@@ -1076,7 +1077,13 @@ internal sealed class SettingsForm : Form
         var selected = e.Item.Selected;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         using var background = new SolidBrush(selected ? _palette.Accent : (e.ItemIndex % 2 == 0 ? _palette.PanelAlt : _palette.Panel));
-        var textColor = selected ? _palette.AccentText : e.ColumnIndex is 2 or 3 or 4 ? _palette.MutedText : _palette.Text;
+        var broken = IsBrokenItem(item);
+        var warningColor = _palette.IsDark ? Color.FromArgb(248, 180, 96) : Color.FromArgb(190, 64, 48);
+        var textColor = selected
+            ? _palette.AccentText
+            : broken && e.ColumnIndex == 2
+                ? warningColor
+                : e.ColumnIndex is 2 or 3 or 4 ? _palette.MutedText : _palette.Text;
         using var foreground = new SolidBrush(textColor);
         e.Graphics.FillRectangle(background, e.Bounds);
 
@@ -1163,9 +1170,9 @@ internal sealed class SettingsForm : Form
 
     private ListViewItem CreateDockItemRow(DockItem item)
     {
-        var row = new ListViewItem(GetTypeLabel(item)) { Tag = item, ToolTipText = GetTargetLabel(item) };
+        var row = new ListViewItem(GetTypeLabel(item)) { Tag = item, ToolTipText = GetTargetTooltip(item) };
         row.SubItems.Add(string.IsNullOrWhiteSpace(item.Name) ? "\u672a\u547d\u540d" : item.Name);
-        row.SubItems.Add(GetTargetLabel(item));
+        row.SubItems.Add(GetTargetDisplay(item));
         row.SubItems.Add(GetIconStyleLabel(item));
         row.SubItems.Add(GetOpenBehaviorLabel(item));
         return row;
@@ -1217,14 +1224,87 @@ internal sealed class SettingsForm : Form
         };
     }
 
-    private static string GetTargetLabel(DockItem item)
+    private static string GetTargetDisplay(DockItem item)
     {
         if (item.IsSeparator)
         {
             return "\u89c6\u89c9\u5206\u7ec4";
         }
 
-        return string.IsNullOrWhiteSpace(item.Target) ? "-" : item.Target;
+        if (string.IsNullOrWhiteSpace(item.Target))
+        {
+            return "-";
+        }
+
+        if (string.Equals(item.Target, ThisPcTarget, StringComparison.OrdinalIgnoreCase))
+        {
+            return "\u6b64\u7535\u8111";
+        }
+
+        if (string.Equals(item.Type, DockItemTypes.Url, StringComparison.OrdinalIgnoreCase)
+            && Uri.TryCreate(item.Target, UriKind.Absolute, out var uri)
+            && !string.IsNullOrWhiteSpace(uri.Host))
+        {
+            return uri.Host;
+        }
+
+        if (item.Target.StartsWith("shell:", StringComparison.OrdinalIgnoreCase)
+            || item.Target.StartsWith("::", StringComparison.OrdinalIgnoreCase))
+        {
+            return item.Target;
+        }
+
+        return ShortPathLabel(item.Target);
+    }
+
+    private static string GetTargetTooltip(DockItem item)
+    {
+        if (item.IsSeparator)
+        {
+            return "\u89c6\u89c9\u5206\u7ec4";
+        }
+
+        if (string.IsNullOrWhiteSpace(item.Target))
+        {
+            return "-";
+        }
+
+        return IsBrokenItem(item)
+            ? "\u76ee\u6807\u4e0d\u5b58\u5728\uff1a" + item.Target
+            : item.Target;
+    }
+
+    private static string ShortPathLabel(string target)
+    {
+        try
+        {
+            var trimmed = target.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var name = Path.GetFileName(trimmed);
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                return name;
+            }
+        }
+        catch
+        {
+        }
+
+        return target.Length > 48 ? "..." + target[^45..] : target;
+    }
+
+    private static bool IsBrokenItem(DockItem item)
+    {
+        if (item.IsSeparator
+            || string.Equals(item.Type, DockItemTypes.Settings, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Type, DockItemTypes.Url, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Type, DockItemTypes.Shell, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase)
+            ? !Directory.Exists(item.Target)
+            : !File.Exists(item.Target) && !Directory.Exists(item.Target);
     }
 
     private static string GetIconStyleLabel(DockItem item)

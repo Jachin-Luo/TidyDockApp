@@ -42,6 +42,7 @@ internal sealed class FolderFlyoutForm : Form
     private int _loadVersion;
     private int _hoverIndex = -1;
     private int _scrollOffset;
+    private string _shownToolTipText = "";
     private FlyoutAnimationState _animationState = FlyoutAnimationState.None;
     private Point _baseLocation;
     private Point _animationStartOffset;
@@ -70,7 +71,7 @@ internal sealed class FolderFlyoutForm : Form
 
         MouseMove += OnMouseMove;
         MouseWheel += OnMouseWheel;
-        MouseLeave += delegate { Cursor = Cursors.Default; _nameToolTip.Hide(this); StartCloseTimer(); };
+        MouseLeave += delegate { Cursor = Cursors.Default; HideToolTip(); StartCloseTimer(); };
         MouseEnter += delegate { _closeTimer.Stop(); };
         MouseDown += OnMouseDown;
         Deactivate += delegate { StartCloseTimer(); };
@@ -126,7 +127,7 @@ internal sealed class FolderFlyoutForm : Form
         _loading = true;
         _scrollOffset = 0;
         _hoverIndex = -1;
-        _nameToolTip.Hide(this);
+        HideToolTip();
         PositionNear(anchorScreen, dockPosition);
         StartOpenAnimation(dockPosition);
         Show();
@@ -156,7 +157,7 @@ internal sealed class FolderFlyoutForm : Form
         _loading = true;
         _scrollOffset = 0;
         _hoverIndex = -1;
-        _nameToolTip.Hide(this);
+        HideToolTip();
         RenderLayeredFlyout();
 
         FolderReadResult result;
@@ -296,7 +297,7 @@ internal sealed class FolderFlyoutForm : Form
         graphics.DrawString(GetTitle(), titleFont, text, titleRect, titleFormat);
         using var pathFont = new Font("Microsoft YaHei UI", 7.8F, FontStyle.Regular, GraphicsUnit.Point);
         var pathRect = new Rectangle(titleRect.Left, header.Top + 22, titleRect.Width, 18);
-        graphics.DrawString(_currentPath, pathFont, muted, pathRect, titleFormat);
+        graphics.DrawString(GetHeaderSubtitle(), pathFont, muted, pathRect, titleFormat);
     }
 
     private void DrawContent(Graphics graphics)
@@ -546,21 +547,36 @@ internal sealed class FolderFlyoutForm : Form
     {
         _closeTimer.Stop();
         Cursor = Cursors.Default;
+        var buttonTip = GetHeaderButtonToolTip(e.Location);
+        if (!string.IsNullOrWhiteSpace(buttonTip))
+        {
+            if (_hoverIndex != -1)
+            {
+                _hoverIndex = -1;
+                RenderLayeredFlyout();
+            }
+            ShowToolTip(buttonTip, e.Location);
+            return;
+        }
+
         var hit = _entryHits.FirstOrDefault(hit => hit.Bounds.Contains(e.Location));
         var index = hit?.Index ?? -1;
         if (_hoverIndex != index)
         {
             _hoverIndex = index;
-            _nameToolTip.Hide(this);
             if (hit?.Entry is not null)
             {
-                _nameToolTip.Show(hit.Entry.Name, this, e.Location.X + 12, e.Location.Y + 18);
+                ShowToolTip(hit.Entry.Name, e.Location);
+            }
+            else
+            {
+                HideToolTip();
             }
             RenderLayeredFlyout();
         }
         else if (hit is null)
         {
-            _nameToolTip.Hide(this);
+            HideToolTip();
         }
     }
 
@@ -621,7 +637,7 @@ internal sealed class FolderFlyoutForm : Form
 
     private void OnMouseWheel(object? sender, MouseEventArgs e)
     {
-        _nameToolTip.Hide(this);
+        HideToolTip();
         _scrollOffset = Math.Max(0, _scrollOffset - Math.Sign(e.Delta) * 80);
         RenderLayeredFlyout();
     }
@@ -662,7 +678,7 @@ internal sealed class FolderFlyoutForm : Form
         }
 
         _closeTimer.Stop();
-        _nameToolTip.Hide(this);
+        HideToolTip();
         _animationTimer.Stop();
         _animationClock.Restart();
         _animationState = FlyoutAnimationState.Closing;
@@ -749,6 +765,86 @@ internal sealed class FolderFlyoutForm : Form
     {
         var name = Path.GetFileName(_currentPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         return string.IsNullOrWhiteSpace(name) ? _currentPath : name;
+    }
+
+    private string GetHeaderSubtitle()
+    {
+        var path = ShortPathLabel(_currentPath, 42);
+        if (_loading)
+        {
+            return "\u6b63\u5728\u8bfb\u53d6... \u00b7 " + path;
+        }
+
+        if (_result is null || !string.IsNullOrWhiteSpace(_result.ErrorMessage))
+        {
+            return path;
+        }
+
+        var count = _result.IsTruncated ? _result.Entries.Count + "+" : _result.Entries.Count.ToString();
+        return count + " \u9879 \u00b7 " + path;
+    }
+
+    private string GetHeaderButtonToolTip(Point location)
+    {
+        if (_backRect.Contains(location))
+        {
+            return _history.Count > 0 ? "\u8fd4\u56de\u4e0a\u4e00\u7ea7" : "\u65e0\u53ef\u8fd4\u56de\u7684\u6587\u4ef6\u5939";
+        }
+
+        if (_explorerRect.Contains(location))
+        {
+            return "\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u6253\u5f00";
+        }
+
+        if (_closeRect.Contains(location))
+        {
+            return "\u5173\u95ed";
+        }
+
+        return "";
+    }
+
+    private void ShowToolTip(string text, Point location)
+    {
+        if (string.Equals(_shownToolTipText, text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _nameToolTip.Hide(this);
+        _shownToolTipText = text;
+        _nameToolTip.Show(text, this, location.X + 12, location.Y + 18);
+    }
+
+    private void HideToolTip()
+    {
+        _shownToolTipText = "";
+        _nameToolTip.Hide(this);
+    }
+
+    private static string ShortPathLabel(string path, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path.Length <= maxLength)
+        {
+            return path;
+        }
+
+        try
+        {
+            var root = Path.GetPathRoot(path) ?? "";
+            var trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var name = Path.GetFileName(trimmed);
+            if (!string.IsNullOrWhiteSpace(root) && !string.IsNullOrWhiteSpace(name))
+            {
+                var label = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + "\\...\\" + name;
+                return label.Length <= maxLength ? label : "...\\" + name;
+            }
+        }
+        catch
+        {
+        }
+
+        return "..." + path[^Math.Min(path.Length, Math.Max(8, maxLength - 3))..];
     }
 
     private bool ShouldShowGroupedSections()

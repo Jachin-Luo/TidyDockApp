@@ -23,6 +23,7 @@ internal sealed class DockSettings
     public bool ShowTrayIcon { get; set; } = true;
     public bool EnableDragReorder { get; set; }
     public bool WrapCustomIcons { get; set; }
+    public bool HighContrastDock { get; set; }
     public string Theme { get; set; } = "system";
     public string Language { get; set; } = "zh-CN";
 }
