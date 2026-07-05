@@ -115,6 +115,8 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 多显示器支持已有 `DockSettings.Display` 和布局服务，设置页需要暴露入口，并继续以主屏幕为默认值。
 - 发布硬化压测脚本必须备份并恢复 `%APPDATA%\TidyDock\winforms\settings.json`。50 项 Dock 采样可以临时写入测试配置，但 finally 中必须恢复用户真实配置。
 - 10 分钟 idle 和 50 项 Dock 采样结果显示 private memory 和 handle count 没有持续增长，后续每个 release candidate 都应至少跑一次。
+- GitHub Release 自动化只复用本地已验证脚本，避免 CI 和本地发布走两套逻辑；`v*` tag 触发后构建 WinForms v0.2 installer、portable zip 和 `SHA256SUMS.txt`。
+- unsigned release 不需要额外 secret，使用 GitHub 内置 `GITHUB_TOKEN` 创建或更新 Release；代码签名以后单独作为发布增强项处理。
 
 ## 键盘可达性记录
 

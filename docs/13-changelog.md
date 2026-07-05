@@ -67,6 +67,7 @@
 - 补齐基础键盘可达性：Dock 支持 `Menu/Shift+F10`、`Enter/Space`、`Ctrl+,`；设置页支持 `Esc/Ctrl+P/Ctrl+S`；文件夹 Flyout 支持 `Esc/Backspace/方向键/Enter`。
 - 文件夹 Flyout 短路径进一步改为末两级路径，窄窗口下更容易判断当前位置。
 - 新增 `Test-ReleaseHardening.ps1`，自动执行 10 分钟 idle 和 50 项 Dock 压测，并在结束后恢复用户配置。
+- 新增 GitHub Release 自动发布流程：推送 `v*` tag 后自动构建 WinForms v0.2 installer、portable zip 和 SHA256 校验文件，并上传到 GitHub Release。
 - 准备 `0.2.0` 开发计划和问题积压。
 
 ## 0.1.1 - 2026-07-01

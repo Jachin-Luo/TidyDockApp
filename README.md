@@ -89,14 +89,14 @@ TidyDock 是一个启动器和手动整理入口，不是系统管理工具。
 构建后会生成两个主要产物：
 
 ```text
-src\TidyDock\dist\TidyDockSetup.exe
-src\TidyDock\dist\TidyDock-portable.zip
+src\TidyDock.WinForms\dist\TidyDockWinFormsSetup.exe
+src\TidyDock.WinForms\dist\TidyDock-winforms-portable.zip
 ```
 
 使用方式：
 
-- 想正常安装：运行 `TidyDockSetup.exe`
-- 想免安装试用：解压 `TidyDock-portable.zip` 后运行 `TidyDock.exe`
+- 想正常安装：运行 `TidyDockWinFormsSetup.exe`
+- 想免安装试用：解压 `TidyDock-winforms-portable.zip` 后运行 `TidyDock.exe`
 
 安装器是当前用户安装，不需要管理员权限。默认安装位置类似：
 
@@ -178,43 +178,53 @@ src\TidyDock\TidyDock.csproj
 
 ## 构建发布包
 
-生成 portable 包和安装器：
+生成 WinForms v0.2 portable 包和安装器：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Build-Installer.ps1"
+dotnet build ".\src\TidyDock.WinForms\TidyDock.WinForms.csproj" -c Release -warnaserror
+powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Build-Installer.ps1"
 ```
 
 生成产物：
 
 ```text
-src\TidyDock\dist\TidyDockSetup.exe
-src\TidyDock\dist\TidyDock-portable.zip
-src\TidyDock\dist\TidyDock-portable\
+src\TidyDock.WinForms\dist\TidyDockWinFormsSetup.exe
+src\TidyDock.WinForms\dist\TidyDock-winforms-portable.zip
+src\TidyDock.WinForms\dist\TidyDock-winforms-portable\
 ```
 
-构建脚本会停止正在运行的 `TidyDock.exe`，避免 exe 被锁导致构建失败。
+GitHub Release 自动发布：
+
+```powershell
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+推送 `v*` tag 后，`.github/workflows/release.yml` 会自动构建 WinForms v0.2 installer、portable zip 和 `SHA256SUMS.txt`，并上传到 GitHub Release。未签名发布不需要额外 secret。
+
+旧 WPF 版本仍保留在 `src\TidyDock`，可作为 legacy 参考和回退。
 
 ## 验证
 
 验证 portable 包结构、zip 内容、图标、版本和常见乱码标记：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Test-Portable.ps1" -SkipLaunch
+powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Test-Portable.ps1" -SkipLaunch
 ```
 
 测量运行时内存：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Measure-Memory.ps1"
+powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Measure-Memory.ps1"
 ```
 
 启动、预热、采样、保存 CSV，并停止脚本启动的进程：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Measure-Memory.ps1" `
+powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Measure-Memory.ps1" `
   -Launch `
   -StopAfter `
-  -CsvPath ".\src\TidyDock\dist\memory-baseline.csv"
+  -CsvPath ".\src\TidyDock.WinForms\dist\memory-baseline.csv"
 ```
 
 ## 仓库结构
@@ -224,7 +234,8 @@ powershell -ExecutionPolicy Bypass -File ".\src\TidyDock\scripts\Measure-Memory.
 |-- .github/              Issue 模板、PR 模板、GitHub Actions
 |-- docs/                 产品、设计、测试、发布和重构文档
 |-- src/
-|   `-- TidyDock/         WPF 应用源码、脚本、安装器、资源
+|   |-- TidyDock/         legacy WPF 应用源码、脚本、安装器、资源
+|   `-- TidyDock.WinForms/ WinForms v0.2 应用源码、脚本、安装器
 |-- CHANGELOG.md          变更记录入口
 |-- CODE_OF_CONDUCT.md    行为准则
 |-- CONTRIBUTING.md       贡献指南

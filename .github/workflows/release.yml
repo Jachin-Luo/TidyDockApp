@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  winforms-v02:
+    name: Build and publish WinForms v0.2
+    runs-on: windows-latest
+
+    env:
+      DOTNET_NOLOGO: "true"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build WinForms release
+        shell: pwsh
+        run: |
+          dotnet build ".\src\TidyDock.WinForms\TidyDock.WinForms.csproj" -c Release -warnaserror
+
+      - name: Package WinForms installer and portable zip
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Build-Installer.ps1"
+
+      - name: Verify portable package
+        shell: pwsh
+        run: |
+          powershell -ExecutionPolicy Bypass -File ".\src\TidyDock.WinForms\scripts\Test-Portable.ps1" -SkipLaunch
+
+      - name: Prepare release assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = $env:GITHUB_REF_NAME
+          $assetRoot = Join-Path $env:GITHUB_WORKSPACE "release-artifacts"
+          New-Item -ItemType Directory -Force -Path $assetRoot | Out-Null
+
+          $setupSource = ".\src\TidyDock.WinForms\dist\TidyDockWinFormsSetup.exe"
+          $zipSource = ".\src\TidyDock.WinForms\dist\TidyDock-winforms-portable.zip"
+          $setupTarget = Join-Path $assetRoot "TidyDock-$tag-winforms-setup.exe"
+          $zipTarget = Join-Path $assetRoot "TidyDock-$tag-winforms-portable.zip"
+
+          Copy-Item -LiteralPath $setupSource -Destination $setupTarget -Force
+          Copy-Item -LiteralPath $zipSource -Destination $zipTarget -Force
+
+          Get-ChildItem -LiteralPath $assetRoot -File |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $(Split-Path -Leaf $_.Path)" } |
+            Set-Content -LiteralPath (Join-Path $assetRoot "SHA256SUMS.txt") -Encoding UTF8
+
+          Get-ChildItem -LiteralPath $assetRoot -File | Format-Table Name,Length
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: TidyDock-${{ github.ref_name }}-winforms-release
+          path: release-artifacts/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $false
+          $tag = $env:GITHUB_REF_NAME
+          $repo = $env:GITHUB_REPOSITORY
+          $assets = Get-ChildItem -LiteralPath ".\release-artifacts" -File | ForEach-Object { $_.FullName }
+
+          gh release view $tag --repo $repo *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+
+          if ($releaseExists) {
+            Write-Host "Release $tag already exists; uploading assets with --clobber."
+          } else {
+            gh release create $tag --repo $repo --title "TidyDock $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to create release $tag."
+            }
+          }
+
+          foreach ($asset in $assets) {
+            gh release upload $tag $asset --repo $repo --clobber
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to upload release asset: $asset"
+            }
+          }

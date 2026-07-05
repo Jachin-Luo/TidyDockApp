@@ -89,8 +89,28 @@ $p2 = Get-Process -Id $p1.Id
 
 - `TidyDockWinFormsSetup.exe`
 - `TidyDock-winforms-portable.zip`
+- `SHA256SUMS.txt`
 - Release notes。
 - Known issues。
+
+## GitHub Release
+
+自动发布：
+
+```powershell
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+验收：
+
+- `.github/workflows/release.yml` 在 `v*` tag push 后触发。
+- workflow 使用 WinForms v0.2 脚本构建 installer 和 portable zip。
+- workflow 上传 `TidyDock-<tag>-winforms-setup.exe`、`TidyDock-<tag>-winforms-portable.zip` 和 `SHA256SUMS.txt`。
+- unsigned 构建只使用 GitHub 内置 `GITHUB_TOKEN`，不需要额外 secret。
+- 如果 GitHub Release 已存在，workflow 会覆盖同名资产。
+
+本地发布仍可按前文 `Build-Installer.ps1` 流程作为 fallback。
 
 ## Rollback
 
