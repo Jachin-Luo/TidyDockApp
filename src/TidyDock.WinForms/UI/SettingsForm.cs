@@ -582,7 +582,24 @@ internal sealed class SettingsForm : Form
 
     private void ShowContextMenu(object? sender, ContextMenuStrip menu)
     {
-        menu.Closed += delegate { menu.Dispose(); };
+        menu.Closed += delegate
+        {
+            try
+            {
+                if (!IsDisposed && IsHandleCreated)
+                {
+                    BeginInvoke(new Action(menu.Dispose));
+                }
+                else
+                {
+                    menu.Dispose();
+                }
+            }
+            catch
+            {
+                menu.Dispose();
+            }
+        };
         if (sender is Control control)
         {
             menu.Show(control, new Point(0, control.Height + 2));

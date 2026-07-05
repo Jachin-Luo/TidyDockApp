@@ -141,3 +141,4 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 分组管理列表列宽应跟随窗口变化，筛选区允许换行，优先避免横向滚动条和拥挤文案。
 - 右键菜单属于高频入口，中文长标签需要更大的最小宽度和行高；先用 ToolStrip 尺寸优化，不引入复杂自绘菜单。
 - Flyout 不新增独立对比度设置，复用 `HighContrastDock`，保持设置面板简单。
+- `ContextMenuStrip.Closed` 里不要同步 `Dispose()` 当前菜单；WinForms 的 `ToolStripManager` 可能还在处理关闭流程，会触发 `ObjectDisposedException` 并导致进程退出。需要释放时使用 `BeginInvoke` 延迟到当前消息处理之后。
