@@ -2,6 +2,7 @@
 
 ## 未发布
 
+- 修复 Dock 右键菜单、托盘菜单和设置页弹出菜单在暗色主题下可能出现黑色文字、文字垂直不居中的问题；菜单现统一使用主题化 owner renderer，并递归覆盖子菜单文字色、箭头色、分隔线和行高。
 - 新增 `src/TidyDock.WinForms`，作为 v0.2 的 Windows-only WinForms 重写版本。
 - 新增 v0.2 独立配置目录：`%APPDATA%\TidyDock\winforms`。
 - 新增 WinForms portable、安装包、验证脚本和内存测量脚本。

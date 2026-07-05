@@ -336,3 +336,147 @@ internal static class PaintSurface
         return fallback.IsEmpty || fallback == Color.Transparent ? SystemColors.Control : Color.FromArgb(255, fallback);
     }
 }
+
+internal static class ThemedMenu
+{
+    public static ContextMenuStrip Create(ThemePalette palette)
+    {
+        var menu = new ContextMenuStrip
+        {
+            Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point),
+            ShowImageMargin = false,
+            Padding = new Padding(6),
+            BackColor = palette.Panel,
+            ForeColor = palette.Text,
+            Renderer = new ThemedMenuRenderer(palette)
+        };
+        menu.Opening += delegate { ApplyMetrics(menu.Items, menu.Font, palette); };
+        return menu;
+    }
+
+    private static void ApplyMetrics(ToolStripItemCollection items, Font font, ThemePalette palette)
+    {
+        foreach (ToolStripItem item in items)
+        {
+            item.BackColor = palette.Panel;
+            item.ForeColor = item.Enabled ? palette.Text : palette.MutedText;
+
+            if (item is ToolStripSeparator separator)
+            {
+                separator.AutoSize = false;
+                separator.Height = 8;
+                continue;
+            }
+
+            var textWidth = TextRenderer.MeasureText(item.Text, font).Width;
+            var extraWidth = item is ToolStripMenuItem menuItem && menuItem.DropDownItems.Count > 0 ? 68 : 44;
+            item.AutoSize = false;
+            item.TextAlign = ContentAlignment.MiddleLeft;
+            item.Size = new Size(Math.Max(224, textWidth + extraWidth), 36);
+
+            if (item is ToolStripMenuItem childMenu && childMenu.DropDownItems.Count > 0)
+            {
+                if (childMenu.DropDown is ToolStripDropDownMenu dropDown)
+                {
+                    dropDown.ShowImageMargin = false;
+                    dropDown.Padding = new Padding(6);
+                    dropDown.BackColor = palette.Panel;
+                    dropDown.ForeColor = palette.Text;
+                    dropDown.Renderer = new ThemedMenuRenderer(palette);
+                }
+
+                ApplyMetrics(childMenu.DropDownItems, font, palette);
+            }
+        }
+    }
+}
+
+internal sealed class ThemedMenuRenderer : ToolStripProfessionalRenderer
+{
+    private readonly ThemePalette _palette;
+
+    public ThemedMenuRenderer(ThemePalette palette)
+        : base(new ThemedMenuColorTable(palette))
+    {
+        _palette = palette;
+    }
+
+    protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs e)
+    {
+        using var background = new SolidBrush(_palette.Panel);
+        e.Graphics.FillRectangle(background, e.AffectedBounds);
+    }
+
+    protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+    {
+        var bounds = new Rectangle(Point.Empty, e.Item.Size);
+        using var background = new SolidBrush(e.Item.Selected && e.Item.Enabled ? _palette.PanelAlt : _palette.Panel);
+        e.Graphics.FillRectangle(background, bounds);
+
+        if (e.Item.Selected && e.Item.Enabled)
+        {
+            using var border = new Pen(_palette.Border);
+            e.Graphics.DrawRectangle(border, new Rectangle(1, 1, bounds.Width - 3, bounds.Height - 3));
+        }
+    }
+
+    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+    {
+        var selected = e.Item.Selected && e.Item.Enabled;
+        var color = !e.Item.Enabled
+            ? _palette.MutedText
+            : selected
+                ? _palette.Text
+                : _palette.Text;
+        var rectangle = new Rectangle(
+            e.TextRectangle.Left + 4,
+            0,
+            Math.Max(1, e.TextRectangle.Width - 8),
+            e.Item.Height);
+        var flags = TextFormatFlags.Left
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.SingleLine
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.PreserveGraphicsClipping;
+        TextRenderer.DrawText(e.Graphics, e.Text, e.TextFont, rectangle, color, flags);
+    }
+
+    protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+    {
+        e.ArrowColor = e.Item?.Enabled == false ? _palette.MutedText : _palette.Text;
+        base.OnRenderArrow(e);
+    }
+
+    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+    {
+        var y = e.Item.Height / 2;
+        using var line = new Pen(_palette.Border);
+        e.Graphics.DrawLine(line, 8, y, e.Item.Width - 8, y);
+    }
+
+    protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+    {
+        using var border = new Pen(_palette.Border);
+        e.Graphics.DrawRectangle(border, new Rectangle(0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1));
+    }
+}
+
+internal sealed class ThemedMenuColorTable : ProfessionalColorTable
+{
+    private readonly ThemePalette _palette;
+
+    public ThemedMenuColorTable(ThemePalette palette)
+    {
+        _palette = palette;
+    }
+
+    public override Color ToolStripDropDownBackground => _palette.Panel;
+    public override Color MenuItemSelected => _palette.PanelAlt;
+    public override Color MenuItemBorder => _palette.Border;
+    public override Color MenuBorder => _palette.Border;
+    public override Color ImageMarginGradientBegin => _palette.Panel;
+    public override Color ImageMarginGradientMiddle => _palette.Panel;
+    public override Color ImageMarginGradientEnd => _palette.Panel;
+    public override Color SeparatorDark => _palette.Border;
+    public override Color SeparatorLight => _palette.PanelAlt;
+}

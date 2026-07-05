@@ -140,5 +140,6 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 数据与备份区的诊断入口应和同类按钮放在一起，避免被固定 footer 挤到边缘。
 - 分组管理列表列宽应跟随窗口变化，筛选区允许换行，优先避免横向滚动条和拥挤文案。
 - 右键菜单属于高频入口，中文长标签需要更大的最小宽度和行高；先用 ToolStrip 尺寸优化，不引入复杂自绘菜单。
+- `ContextMenuStrip` 在暗色主题下不能只设置 `BackColor` / `ForeColor`，子菜单、箭头和 hover 文本仍可能走系统默认黑字绘制；应统一使用主题化 `ToolStripProfessionalRenderer`，并在 `OnRenderItemText` 中显式垂直居中绘制文字。
 - Flyout 不新增独立对比度设置，复用 `HighContrastDock`，保持设置面板简单。
 - `ContextMenuStrip.Closed` 里不要同步 `Dispose()` 当前菜单；WinForms 的 `ToolStripManager` 可能还在处理关闭流程，会触发 `ObjectDisposedException` 并导致进程退出。需要释放时使用 `BeginInvoke` 延迟到当前消息处理之后。

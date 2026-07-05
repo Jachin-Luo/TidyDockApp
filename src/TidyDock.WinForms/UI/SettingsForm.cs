@@ -570,14 +570,7 @@ internal sealed class SettingsForm : Form
 
     private ContextMenuStrip CreateContextMenu()
     {
-        return new ContextMenuStrip
-        {
-            Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point),
-            ShowImageMargin = false,
-            Padding = new Padding(6),
-            BackColor = _palette.Panel,
-            ForeColor = _palette.Text
-        };
+        return ThemedMenu.Create(_palette);
     }
 
     private void ShowContextMenu(object? sender, ContextMenuStrip menu)
