@@ -1032,7 +1032,7 @@ internal sealed class DockForm : Form
 
     private void ShowItemMenu(int index, Point location)
     {
-        var menu = new ContextMenuStrip();
+        var menu = CreateContextMenu();
         var item = index >= 0 && index < _config.Items.Count ? _config.Items[index] : null;
         if (item is not null)
         {
@@ -1181,11 +1181,23 @@ internal sealed class DockForm : Form
 
     private ContextMenuStrip BuildTrayMenu()
     {
-        var menu = new ContextMenuStrip();
+        var menu = CreateContextMenu();
         menu.Items.Add(Visible ? "\u9690\u85cf Dock" : "\u663e\u793a Dock", null, delegate { ToggleVisible(); });
         menu.Items.Add("\u8bbe\u7f6e", null, delegate { ShowSettings(); });
         menu.Items.Add("\u9000\u51fa", null, delegate { Application.Exit(); });
         return menu;
+    }
+
+    private ContextMenuStrip CreateContextMenu()
+    {
+        return new ContextMenuStrip
+        {
+            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point),
+            ShowImageMargin = false,
+            BackColor = _palette.Panel,
+            ForeColor = _palette.Text,
+            Renderer = new ToolStripProfessionalRenderer(new DockMenuColorTable(_palette))
+        };
     }
 
     private void ShowSettings()
@@ -1406,5 +1418,25 @@ internal sealed class DockForm : Form
         }
 
         return Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? (Icon)SystemIcons.Application.Clone();
+    }
+
+    private sealed class DockMenuColorTable : ProfessionalColorTable
+    {
+        private readonly ThemePalette _palette;
+
+        public DockMenuColorTable(ThemePalette palette)
+        {
+            _palette = palette;
+        }
+
+        public override Color ToolStripDropDownBackground => _palette.Panel;
+        public override Color MenuItemSelected => _palette.PanelAlt;
+        public override Color MenuItemBorder => _palette.Border;
+        public override Color MenuBorder => _palette.Border;
+        public override Color ImageMarginGradientBegin => _palette.Panel;
+        public override Color ImageMarginGradientMiddle => _palette.Panel;
+        public override Color ImageMarginGradientEnd => _palette.Panel;
+        public override Color SeparatorDark => _palette.Border;
+        public override Color SeparatorLight => _palette.PanelAlt;
     }
 }

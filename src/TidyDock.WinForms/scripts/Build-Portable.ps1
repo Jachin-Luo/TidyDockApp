@@ -21,7 +21,7 @@ New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
 & dotnet publish $project `
     -c $Configuration `
     -r $Runtime `
-    --self-contained false `
+    --self-contained true `
     -p:PublishSingleFile=true `
     -p:DebugType=None `
     -p:DebugSymbols=false
@@ -40,6 +40,8 @@ TidyDock v0.2 WinForms preview
 
 This is the Windows-only low-resource rewrite. It uses a separate config path:
 %APPDATA%\TidyDock\winforms\settings.json
+
+The portable build is self-contained and does not require a separate .NET Desktop Runtime install.
 
 User configuration is kept when you uninstall or reinstall by default.
 To remove the app and delete user configuration explicitly, run:

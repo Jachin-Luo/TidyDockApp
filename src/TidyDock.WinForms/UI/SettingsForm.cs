@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using TidyDock.WinForms.Core;
 using TidyDock.WinForms.Services;
 using TidyDock.WinForms.Shell;
@@ -215,6 +216,7 @@ internal sealed class SettingsForm : Form
                 RestoreScrollLater(scrollY);
             }));
             panel.Controls.Add(MakeCombo("\u4f4d\u7f6e", _positionOptions, _config.Dock.Position, value => { _config.Dock.Position = value; }));
+            panel.Controls.Add(MakeCombo("\u663e\u793a\u5668", GetDisplayOptions(), _config.Dock.Display, value => { _config.Dock.Display = value; }));
             panel.Controls.Add(MakeNumber("\u56fe\u6807\u5927\u5c0f", _config.Dock.IconSize, 32, 96, "\u50cf\u7d20", value => { _config.Dock.IconSize = value; }));
             panel.Controls.Add(MakeNumber("\u56fe\u6807\u95f4\u8ddd", _config.Dock.IconGap, 0, 32, "\u50cf\u7d20", value => { _config.Dock.IconGap = value; }));
             panel.Controls.Add(MakeNumber("\u5706\u89d2\u534a\u5f84", _config.Dock.CornerRadius, 6, 40, "\u50cf\u7d20", value => { _config.Dock.CornerRadius = value; }));
@@ -249,6 +251,9 @@ internal sealed class SettingsForm : Form
             backupRow.Controls.Add(MakeButton("\u5bfc\u5165\u5907\u4efd", ImportBackup));
             backupRow.Controls.Add(MakeButton("\u6062\u590d\u6700\u8fd1\u5907\u4efd", RestoreLatestBackup));
             panel.Controls.Add(backupRow);
+            var diagnosticRow = MakeRow();
+            diagnosticRow.Controls.Add(MakeButton("\u590d\u5236\u8bca\u65ad\u4fe1\u606f", CopyDiagnosticInfo));
+            panel.Controls.Add(diagnosticRow);
         });
 
         shell.Controls.Add(BuildFooter(), 0, 2);
@@ -547,6 +552,44 @@ internal sealed class SettingsForm : Form
     {
         Directory.CreateDirectory(_backupService.DataDirectory);
         Process.Start(new ProcessStartInfo(_backupService.DataDirectory) { UseShellExecute = true });
+    }
+
+    private void CopyDiagnosticInfo(object? sender, EventArgs e)
+    {
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            process.Refresh();
+            var configPath = Path.Combine(_backupService.DataDirectory, "settings.json");
+            var logPath = Path.Combine(_backupService.DataDirectory, "logs", "tidydock.log");
+            var uptime = DateTime.Now - AppRuntime.StartedAt;
+            var version = typeof(SettingsForm).Assembly.GetName().Version?.ToString() ?? "unknown";
+            var text = string.Join(Environment.NewLine,
+                "TidyDock 诊断摘要",
+                $"版本：{version}",
+                $"进程 ID：{process.Id}",
+                $"启动耗时：{Math.Round(AppRuntime.StartupElapsed.TotalMilliseconds)} ms",
+                $"运行时长：{FormatDuration(uptime)}",
+                $"系统：{RuntimeInformation.OSDescription}",
+                $".NET：{RuntimeInformation.FrameworkDescription}",
+                $"配置目录：{_backupService.DataDirectory}",
+                $"配置文件：{configPath}",
+                $"日志文件：{logPath}",
+                $"Dock 项数量：{_config.Items.Count}",
+                $"文件夹项数量：{_config.Items.Count(item => string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))}",
+                $"自定义图标项数量：{_config.Items.Count(item => !string.IsNullOrWhiteSpace(item.IconPath))}",
+                $"Private Memory：{Math.Round(process.PrivateMemorySize64 / 1024d / 1024d, 2)} MB",
+                $"Working Set：{Math.Round(process.WorkingSet64 / 1024d / 1024d, 2)} MB",
+                $"句柄数：{process.HandleCount}",
+                $"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+
+            Clipboard.SetText(text);
+            MessageBox.Show("\u8bca\u65ad\u4fe1\u606f\u5df2\u590d\u5236\u3002", "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void ExportBackup(object? sender, EventArgs e)
@@ -1203,6 +1246,31 @@ internal sealed class SettingsForm : Form
     private static string FormatSliderValue(int value, string suffix)
     {
         return string.IsNullOrWhiteSpace(suffix) ? value.ToString() : $"{value} {suffix}";
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        return duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours} 小时 {duration.Minutes} 分钟"
+            : $"{duration.Minutes} 分钟 {duration.Seconds} 秒";
+    }
+
+    private static ComboOption[] GetDisplayOptions()
+    {
+        var options = new List<ComboOption> { new("primary", "\u4e3b\u5c4f\u5e55") };
+        var index = 1;
+        foreach (var screen in Screen.AllScreens)
+        {
+            var primary = screen.Primary ? "\uff0c\u4e3b\u5c4f" : "";
+            var label = $"\u663e\u793a\u5668 {index}\uff08{screen.Bounds.Width}x{screen.Bounds.Height}{primary}\uff09";
+            options.Add(new ComboOption(screen.DeviceName, label));
+            index++;
+        }
+
+        return options
+            .GroupBy(option => option.Value, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     private static string GetTypeLabel(DockItem item)

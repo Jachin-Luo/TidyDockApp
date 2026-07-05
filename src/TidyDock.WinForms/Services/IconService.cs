@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -8,9 +7,12 @@ namespace TidyDock.WinForms.Services;
 
 internal sealed class IconService : IDisposable
 {
+    private const int MaxCacheEntries = 256;
     private readonly AppPaths _paths;
     private readonly LogService _log;
-    private readonly ConcurrentDictionary<string, Image> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _cacheLock = new();
+    private readonly Dictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LinkedList<string> _lru = new();
 
     public IconService(AppPaths paths, LogService log)
     {
@@ -21,7 +23,27 @@ internal sealed class IconService : IDisposable
     public Image GetIcon(DockItem item, int size, bool wrapCustomIcons = false)
     {
         var key = $"{item.Type}|{item.Target}|{item.IconPath}|{item.IconStyle}|{wrapCustomIcons}|{size}";
-        return _cache.GetOrAdd(key, _ => LoadIcon(item, size, wrapCustomIcons));
+        var cached = TryGetCachedIcon(key);
+        if (cached is not null)
+        {
+            return cached;
+        }
+
+        var loaded = LoadIcon(item, size, wrapCustomIcons);
+        lock (_cacheLock)
+        {
+            if (_cache.TryGetValue(key, out var existing))
+            {
+                loaded.Dispose();
+                Touch(existing);
+                return existing.Image;
+            }
+
+            var node = _lru.AddLast(key);
+            _cache[key] = new CacheEntry(loaded, node);
+            TrimCache();
+            return loaded;
+        }
     }
 
     public Image GetIcon(FolderEntry entry, int size)
@@ -65,11 +87,48 @@ internal sealed class IconService : IDisposable
 
     public void ClearMemoryCache()
     {
-        foreach (var image in _cache.Values)
+        lock (_cacheLock)
         {
-            image.Dispose();
+            foreach (var entry in _cache.Values)
+            {
+                entry.Image.Dispose();
+            }
+            _cache.Clear();
+            _lru.Clear();
         }
-        _cache.Clear();
+    }
+
+    private Image? TryGetCachedIcon(string key)
+    {
+        lock (_cacheLock)
+        {
+            if (!_cache.TryGetValue(key, out var entry))
+            {
+                return null;
+            }
+
+            Touch(entry);
+            return entry.Image;
+        }
+    }
+
+    private void Touch(CacheEntry entry)
+    {
+        _lru.Remove(entry.Node);
+        _lru.AddLast(entry.Node);
+    }
+
+    private void TrimCache()
+    {
+        while (_cache.Count > MaxCacheEntries && _lru.First is not null)
+        {
+            var key = _lru.First.Value;
+            _lru.RemoveFirst();
+            if (_cache.Remove(key, out var entry))
+            {
+                entry.Image.Dispose();
+            }
+        }
     }
 
     private Image LoadIcon(DockItem item, int size, bool wrapCustomIcons)
@@ -393,6 +452,8 @@ internal sealed class IconService : IDisposable
     {
         ClearMemoryCache();
     }
+
+    private sealed record CacheEntry(Image Image, LinkedListNode<string> Node);
 
     [Flags]
     private enum ShellItemImageFactoryFlags

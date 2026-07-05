@@ -40,7 +40,7 @@ internal sealed class ConfigService
         catch (Exception ex)
         {
             _log.Error(ex);
-            return CreateDefault();
+            return RecoverFromLoadFailure(ex);
         }
     }
 
@@ -104,7 +104,7 @@ internal sealed class ConfigService
         };
     }
 
-    private bool Normalize(AppConfig config)
+    public bool Normalize(AppConfig config)
     {
         var changed = false;
         config.ConfigVersion = 1;
@@ -261,6 +261,62 @@ internal sealed class ConfigService
         var target = Path.Combine(_paths.Shortcuts, $"{Guid.NewGuid():N}-{safeName}");
         File.Copy(path, target, true);
         return target;
+    }
+
+    private AppConfig RecoverFromLoadFailure(Exception loadException)
+    {
+        TryPreserveBrokenConfig(loadException);
+
+        try
+        {
+            var backupService = new DataBackupService(_paths, _log);
+            var latest = backupService.GetLatestBackup();
+            if (!string.IsNullOrWhiteSpace(latest))
+            {
+                var recovered = backupService.ReadConfigFromBackup(latest);
+                backupService.ImportResources(latest);
+                Save(recovered);
+                _log.Info("Recovered settings from automatic backup: " + latest);
+                return recovered;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
+        }
+
+        var created = CreateDefault();
+        try
+        {
+            Save(created);
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
+        }
+        return created;
+    }
+
+    private void TryPreserveBrokenConfig(Exception loadException)
+    {
+        try
+        {
+            if (!File.Exists(_paths.ConfigPath))
+            {
+                return;
+            }
+
+            _paths.Ensure();
+            var brokenPath = Path.Combine(
+                _paths.Root,
+                $"settings.broken-{DateTime.Now:yyyyMMdd-HHmmss}.json");
+            File.Copy(_paths.ConfigPath, brokenPath, overwrite: false);
+            _log.Info("Preserved broken settings file: " + brokenPath + " (" + loadException.GetType().Name + ")");
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
+        }
     }
 
     private static string NormalizeIconStyle(string? iconStyle)

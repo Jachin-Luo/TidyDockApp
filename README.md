@@ -48,6 +48,8 @@ TidyDock 适合这些用户：
 - 支持自动隐藏和边缘唤出
 - 支持托盘菜单
 - 支持开机启动
+- 支持多显示器选择
+- 支持复制脱敏诊断摘要
 - 支持中文和英文基础界面文案
 - 支持浅色、深色、跟随系统主题
 - 文件夹面板按需读取目录，不递归扫描，支持手动分组和分组管理筛选
@@ -107,6 +109,8 @@ WinForms v0.2 预览版的当前用户安装目录为：
 ```text
 %LOCALAPPDATA%\Programs\TidyDock.WinForms
 ```
+
+WinForms v0.2 portable / installer 采用 self-contained 发布，正常使用不需要单独安装 .NET Desktop Runtime。
 
 ## 本地数据
 

@@ -93,6 +93,37 @@ After the transparent glass UI and Chinese localization pass, a short 4-sample c
 
 After adding the WinForms folder Flyout and folder panel settings, a short 4-sample idle check measured about 18.87 MB private memory, with stable CPU seconds during the sample. The folder service remains lazy and does not scan folders until a folder Dock item is clicked.
 
+### WinForms v0.2 发布硬化短测 - 2026-07-05
+
+本次样本来自 self-contained portable 安装并启动后的 5 秒 idle 检查：
+
+```powershell
+$p1 = Get-Process TidyDock -ErrorAction SilentlyContinue | Select-Object -First 1
+Start-Sleep -Seconds 5
+$p2 = Get-Process -Id $p1.Id
+[pscustomobject]@{
+  CpuDeltaSeconds = [math]::Round(($p2.CPU - $p1.CPU), 4)
+  WorkingSetMB = [math]::Round($p2.WorkingSet64 / 1MB, 2)
+  PrivateMemoryMB = [math]::Round($p2.PrivateMemorySize64 / 1MB, 2)
+  Handles = $p2.HandleCount
+} | Format-List
+```
+
+| Metric | Value |
+| --- | ---: |
+| CPU delta over 5s | 0 s |
+| Working set | 66.45 MB |
+| Private memory | 16.67 MB |
+| Handles | 481 |
+
+Self-contained 发布主要增加包体积，不明显增加空闲 private memory。本次产物大小：
+
+| Artifact | Size |
+| --- | ---: |
+| `TidyDock.exe` | 146.51 MB |
+| `TidyDock-winforms-portable.zip` | 59.10 MB |
+| `TidyDockWinFormsSetup.exe` | 146.62 MB |
+
 ## Interpretation
 
 Idle CPU is good in this baseline.
@@ -107,7 +138,7 @@ The first optimization confirms that custom image icons were a major source of p
 - The optimized CSV is stored at `src/TidyDock/dist/memory-after-icon-window-optimization.csv`.
 - The WinForms preview CSV is stored at `src/TidyDock.WinForms/dist/memory-winforms.csv`.
 - `dist` is ignored by Git, so important summaries should be copied into this document.
-- A quick attempt to parse the current user config with PowerShell JSON parsing failed, suggesting the local config may contain a malformed or encoding-damaged string. Config validation and recovery should be included in the first refactor phase.
+- Config validation and recovery now preserve broken `settings.json` files, attempt automatic backup recovery, and fall back to defaults only when recovery fails.
 
 ## Next Measurements
 

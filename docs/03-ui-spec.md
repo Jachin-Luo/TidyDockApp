@@ -2,73 +2,95 @@
 
 ## Primary Surfaces
 
-- Dock window.
-- Dock context menu.
-- Item context menu.
-- Folder panel popup.
-- Settings window.
-- Input dialogs.
-- Tray menu.
+- Dock 主窗体。
+- Dock 右键菜单。
+- 文件夹 Flyout。
+- 设置窗口。
+- 分组管理窗口。
+- 输入弹窗。
+- 托盘菜单。
 
 ## Dock Window
 
-- Borderless transparent WPF window.
-- Contains one continuous item row or column.
-- Orientation follows Dock position.
-- Empty state uses one compact hint button.
-- Dock background opacity can be 0.
-- Optional item labels use trimmed text.
-- Separator is a visual divider only.
+- WinForms + `UpdateLayeredWindow` 自绘分层窗口。
+- 无边框、透明玻璃底座，支持 `增强底座对比度`。
+- 方向跟随位置：底部、顶部、左侧、右侧。
+- 空 Dock 显示首次使用入口：添加应用/文件、添加文件夹、打开设置。
+- 分隔符是窄视觉分组，不占完整图标槽位。
+- 悬停图标使用短时缓动放大，不做持续动画循环。
 
 ## Dock Item States
 
-- Normal.
-- Hover magnified.
-- Drag source dimmed.
-- Missing target warning on activation.
-- Edit actions disabled when edit mode is off.
+- 普通。
+- 悬停放大。
+- 拖拽排序，默认关闭，需在设置中启用。
+- 失效目标警示徽标。
+- 圆角图标样式。
+- 自定义图标。
 
 ## Context Menus
 
-Item menu:
+单个 Dock 项右键菜单：
 
-- Open.
-- Rename, edit target, change icon when edit mode is on.
-- Show or open in Explorer.
-- Remove from Dock when edit mode is on.
-- Shared Dock actions.
+- 打开。
+- 重新定位目标，仅失效项显示。
+- 文件夹项可在资源管理器中打开。
+- 文件夹项可切换打开方式：悬浮面板 / 资源管理器。
+- 文件夹项可管理分组。
+- 重命名。
+- 更换图标 / 恢复默认图标。
+- 移除，移除前确认且不删除原文件。
+- 全局添加入口和设置入口放在菜单下半部分。
 
-Dock menu:
+Dock 空白区域右键菜单：
 
-- Edit mode toggle.
-- Add URL.
-- Add separator.
-- Settings.
-- Hide Dock.
-- About.
+- 添加应用/文件。
+- 添加文件夹。
+- 添加网址。
+- 添加此电脑。
+- 添加分隔符。
+- 设置。
 
-## Folder Panel
+托盘菜单保持轻量：
 
-- Compact popup anchored to Dock item.
-- Placement follows Dock position.
-- Header contains back, title, Explorer, close.
-- Rows show icon and trimmed display name.
-- Hidden files follow setting.
-- Overflow shows hint instead of loading more.
+- 显示 / 隐藏 Dock。
+- 设置。
+- 退出。
+
+## Folder Flyout
+
+- 只读取当前文件夹直接子项，不递归扫描。
+- 打开/关闭使用 140ms 轻量淡入淡出和方向位移动画。
+- 顶部显示当前文件夹名、项目数和短路径。
+- Header 按钮：返回、在资源管理器中打开、关闭，并提供 tooltip。
+- 内容按分组纵向展示；存在未归类项目时显示 `未分组`。
+- 图标 + 单行省略文件名，悬浮显示完整名称。
+- 大文件夹按 `MaxItems` 截断并提示。
 
 ## Settings Window
 
-Sections:
+- 设置页使用草稿流程：修改只写草稿。
+- `预览到 Dock` 临时应用草稿，不保存。
+- `保存并关闭` 应用并保存。
+- `取消` 或确认放弃关闭会恢复打开设置前的 Dock 状态。
+- 数字设置统一使用滑条。
+- Dock 项以表格展示，目标列默认显示短路径或域名，完整路径放 tooltip。
+- 表格内可行内切换圆角图标和文件夹打开方式。
+- 数据与备份区提供导出、导入、恢复最近备份和复制诊断信息。
+- `跟随 Windows 启动` 是系统级设置，仍即时生效。
 
-- Appearance.
-- Behavior.
-- Dock items.
-- Maintenance.
+## Folder Group Manager
 
-Current implementation keeps a simple white settings window. A later UI pass may align it with `ThemeService`, but the refactor should not block on visual redesign.
+- 左侧管理分组：新建、重命名、删除、上移、下移。
+- 右侧显示当前文件夹直接子项。
+- 支持搜索、只看未分组、只看当前分组。
+- 支持复选框批量加入或移出分组。
+- 加入或移出后自动清空当前勾选。
+- 分组只影响 TidyDock 展示，不移动、不重命名真实文件。
 
-## Dialogs
+## Dialogs And Accessibility
 
-- Input dialogs should localize OK and Cancel.
-- Escape should close settings and folder panel.
-
+- 输入弹窗使用中文标题和按钮。
+- 文件夹 Flyout 支持 `Esc` 关闭。
+- 设置页关闭时如存在未保存或已预览修改，会确认是否放弃。
+- 自绘控件应提供清晰中文文本；后续可继续补充更多 accessibility name 和键盘路径。

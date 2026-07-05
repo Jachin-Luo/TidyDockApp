@@ -9,7 +9,7 @@
 - 让 TidyDock 保持为一个小而清晰的手动 Dock，而不是任务栏替代品。
 - 常驻 Dock 使用 WinForms + Win32 interop，避免 WPF 控件树带来的额外开销。
 - v0.2 配置独立保存，不读取或覆盖 v0.1 WPF 配置。
-- 打包方式保持本地、轻量，并优先支持当前用户安装。
+- 打包方式保持本地优先，portable / installer 使用 self-contained 单文件，优先支持当前用户安装。
 
 ## 本地数据
 
@@ -57,7 +57,7 @@ powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Test-P
 - 点击文件夹项会打开轻量文件夹面板，支持手动分组、搜索和筛选，而不是把 TidyDock 变成任务栏或文件索引器。
 - 支持中文右键菜单和托盘菜单。
 - 设置窗口使用草稿流程，提供 `预览到 Dock` 和 `保存并关闭`。
-- 设置窗口包含文件夹面板展示数量、高度和隐藏文件选项。
+- 设置窗口包含显示器选择、文件夹面板展示数量、高度、隐藏文件和复制诊断信息。
 - 支持自动隐藏热区。
 - 支持当前用户开机启动设置。
 - 支持 portable zip 和当前用户安装器。

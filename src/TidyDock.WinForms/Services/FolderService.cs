@@ -16,18 +16,30 @@ internal sealed class FolderService
             }
 
             var maxItems = Math.Clamp(settings.MaxItems, 20, 1000);
-            var entries = Directory.EnumerateFileSystemEntries(path)
-                .Select(entryPath => CreateEntry(path, entryPath))
-                .Where(entry => entry != null)
-                .Cast<FolderEntry>()
-                .Where(entry => settings.ShowHiddenFiles || !IsHidden(entry.Path))
+            var entries = new List<FolderEntry>(maxItems + 1);
+            foreach (var entryPath in Directory.EnumerateFileSystemEntries(path))
+            {
+                var entry = CreateEntry(path, entryPath);
+                if (entry is null || (!settings.ShowHiddenFiles && IsHidden(entry.Path)))
+                {
+                    continue;
+                }
+
+                entries.Add(entry);
+                if (entries.Count > maxItems)
+                {
+                    break;
+                }
+            }
+
+            var orderedEntries = entries
                 .OrderByDescending(entry => entry.IsDirectory)
                 .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
             result.TotalCount = entries.Count;
             result.IsTruncated = entries.Count > maxItems;
-            result.Entries = entries.Take(maxItems).ToList();
+            result.Entries = orderedEntries.Take(maxItems).ToList();
             return result;
         }
         catch (UnauthorizedAccessException)

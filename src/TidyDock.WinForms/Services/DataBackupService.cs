@@ -67,7 +67,9 @@ internal sealed class DataBackupService
 
         using var stream = entry.Open();
         using var reader = new StreamReader(stream);
-        return ConfigService.Deserialize(reader.ReadToEnd());
+        var config = ConfigService.Deserialize(reader.ReadToEnd());
+        _ = new ConfigService(_paths, _log).Normalize(config);
+        return config;
     }
 
     public void ImportResources(string zipPath)

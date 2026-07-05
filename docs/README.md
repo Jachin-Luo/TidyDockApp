@@ -19,6 +19,7 @@ This directory keeps product, design, development, testing, release, and plannin
 13. [issues/v0.2.0-backlog.md](issues/v0.2.0-backlog.md): issue-ready v0.2.0 backlog.
 14. [releases/v0.1.1.md](releases/v0.1.1.md): v0.1.1 release notes.
 15. [adr/0001-tech-stack.md](adr/0001-tech-stack.md): architecture decision record.
+16. [reviews/](reviews/): product review, optimization suggestions, and stage reassessments.
 
 ## Current Refactor Principles
 
@@ -31,9 +32,9 @@ This directory keeps product, design, development, testing, release, and plannin
 ## Useful Commands
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File '.\src\TidyDock\scripts\Build-Installer.ps1'
-powershell -ExecutionPolicy Bypass -File '.\src\TidyDock\scripts\Test-Portable.ps1' -SkipLaunch
-powershell -ExecutionPolicy Bypass -File '.\src\TidyDock\scripts\Measure-Memory.ps1'
+dotnet build '.\src\TidyDock.WinForms\TidyDock.WinForms.csproj' -c Release -warnaserror
+powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Build-Installer.ps1'
+powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Test-Portable.ps1'
 ```
 
 ## Legacy Documents
