@@ -88,6 +88,12 @@ namespace TidyDockWinFormsSetup
                 "-ExecutionPolicy Bypass -File \"" + Path.Combine(target, "Uninstall-CurrentUser.ps1") + "\"",
                 target,
                 icon);
+            CreateShortcut(
+                Path.Combine(startMenu, "\u5378\u8f7d\u5e76\u6e05\u9664\u914d\u7f6e TidyDock.lnk"),
+                "powershell.exe",
+                "-ExecutionPolicy Bypass -File \"" + Path.Combine(target, "Uninstall-CurrentUser.ps1") + "\" -RemoveUserData",
+                target,
+                icon);
         }
 
         private static void CreateShortcut(string shortcutPath, string targetPath, string arguments, string workingDirectory, string iconPath)

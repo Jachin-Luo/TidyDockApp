@@ -341,7 +341,6 @@ internal sealed class IconService : IDisposable
     private static bool ShouldWrapIcon(DockItem item, bool wrapCustomIcons)
     {
         return !item.IsSeparator
-            && (wrapCustomIcons || string.IsNullOrWhiteSpace(item.IconPath))
             && string.Equals(item.IconStyle, DockIconStyles.RoundedRect, StringComparison.OrdinalIgnoreCase);
     }
 

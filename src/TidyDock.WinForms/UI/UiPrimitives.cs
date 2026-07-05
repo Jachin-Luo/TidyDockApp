@@ -103,6 +103,14 @@ internal sealed class GlassButton : Control
         base.OnMouseUp(e);
     }
 
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        _hovered = false;
+        _pressed = false;
+        Invalidate();
+        base.OnEnabledChanged(e);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -115,14 +123,18 @@ internal sealed class GlassButton : Control
         {
             baseColor = Palette.IsDark ? Color.FromArgb(62, 42, 46) : Color.FromArgb(255, 244, 244);
         }
+        if (!Enabled)
+        {
+            baseColor = Palette.IsDark ? Color.FromArgb(40, 43, 48) : Color.FromArgb(229, 233, 238);
+        }
         var fill = _pressed ? ControlPaint.Dark(baseColor, 0.08F) : _hovered ? ControlPaint.Light(baseColor, 0.08F) : baseColor;
-        var borderColor = Primary ? Palette.Accent : Danger ? Palette.Danger : Palette.Border;
+        var borderColor = !Enabled ? Palette.Border : Primary ? Palette.Accent : Danger ? Palette.Danger : Palette.Border;
         using var brush = new SolidBrush(fill);
         using var border = new Pen(borderColor);
         e.Graphics.FillPath(brush, path);
         e.Graphics.DrawPath(border, path);
 
-        var textColor = Primary ? Palette.AccentText : Danger ? Palette.Danger : Palette.Text;
+        var textColor = !Enabled ? Palette.MutedText : Primary ? Palette.AccentText : Danger ? Palette.Danger : Palette.Text;
         using var textBrush = new SolidBrush(textColor);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
         e.Graphics.DrawString(Text, Font, textBrush, bounds, format);

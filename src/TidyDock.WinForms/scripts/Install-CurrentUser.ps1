@@ -31,6 +31,14 @@ $uninstallShortcut.WorkingDirectory = $target
 $uninstallShortcut.IconLocation = Join-Path $target "TidyDock.ico"
 $uninstallShortcut.Save()
 
+$uninstallAndRemoveDataName = "$([char]0x5378)$([char]0x8f7d)$([char]0x5e76)$([char]0x6e05)$([char]0x9664)$([char]0x914d)$([char]0x7f6e) TidyDock.lnk"
+$uninstallAndRemoveDataShortcut = $shell.CreateShortcut((Join-Path $startMenu $uninstallAndRemoveDataName))
+$uninstallAndRemoveDataShortcut.TargetPath = "powershell.exe"
+$uninstallAndRemoveDataShortcut.Arguments = "-ExecutionPolicy Bypass -File `"$target\Uninstall-CurrentUser.ps1`" -RemoveUserData"
+$uninstallAndRemoveDataShortcut.WorkingDirectory = $target
+$uninstallAndRemoveDataShortcut.IconLocation = Join-Path $target "TidyDock.ico"
+$uninstallAndRemoveDataShortcut.Save()
+
 if ($Launch) {
     Start-Process -FilePath $exe
 }

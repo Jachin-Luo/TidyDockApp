@@ -41,6 +41,15 @@ TidyDock v0.2 WinForms preview
 This is the Windows-only low-resource rewrite. It uses a separate config path:
 %APPDATA%\TidyDock\winforms\settings.json
 
+User configuration is kept when you uninstall or reinstall by default.
+To remove the app and delete user configuration explicitly, run:
+  powershell -ExecutionPolicy Bypass -File .\Uninstall-CurrentUser.ps1 -RemoveUserData
+
+Backups exported from settings contain:
+  settings.json
+  icons\
+  shortcuts\
+
 Run:
   TidyDock.exe
 

@@ -29,6 +29,26 @@ internal static class DwmBackdrop
         }
     }
 
+    public static bool TryApplyControlTheme(IntPtr handle, bool darkMode)
+    {
+        if (handle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        try
+        {
+            return SetWindowTheme(handle, darkMode ? "DarkMode_Explorer" : "Explorer", null) == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int dwAttribute, ref int pvAttribute, int cbAttribute);
+
+    [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
+    private static extern int SetWindowTheme(IntPtr hwnd, string? pszSubAppName, string? pszSubIdList);
 }

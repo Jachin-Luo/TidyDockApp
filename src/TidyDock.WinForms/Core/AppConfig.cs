@@ -44,6 +44,7 @@ internal sealed class DockItem
     public string IconPath { get; set; } = "";
     public string IconStyle { get; set; } = "default";
     public string OpenBehavior { get; set; } = "auto";
+    public List<FolderGroup> FolderGroups { get; set; } = [];
 
     public bool IsSeparator => string.Equals(Type, DockItemTypes.Separator, StringComparison.OrdinalIgnoreCase);
 
@@ -53,10 +54,18 @@ internal sealed class DockItem
     }
 }
 
+internal sealed class FolderGroup
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public List<string> EntryKeys { get; set; } = [];
+}
+
 internal sealed class FolderEntry
 {
     public string Name { get; set; } = "";
     public string Path { get; set; } = "";
+    public string EntryKey { get; set; } = "";
     public bool IsDirectory { get; set; }
     public bool IsShortcut { get; set; }
 }

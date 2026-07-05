@@ -7,6 +7,7 @@ internal sealed class AppPaths
     public string Shortcuts { get; }
     public string Icons { get; }
     public string Logs { get; }
+    public string Backups { get; }
 
     public AppPaths()
     {
@@ -14,6 +15,7 @@ internal sealed class AppPaths
         Shortcuts = Path.Combine(Root, "shortcuts");
         Icons = Path.Combine(Root, "icons");
         Logs = Path.Combine(Root, "logs");
+        Backups = Path.Combine(Root, "backups");
     }
 
     public string ConfigPath => Path.Combine(Root, "settings.json");
@@ -26,5 +28,6 @@ internal sealed class AppPaths
         Directory.CreateDirectory(Shortcuts);
         Directory.CreateDirectory(Icons);
         Directory.CreateDirectory(Logs);
+        Directory.CreateDirectory(Backups);
     }
 }

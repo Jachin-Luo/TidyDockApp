@@ -7,7 +7,7 @@ internal sealed class ConfigService
 {
     private readonly AppPaths _paths;
     private readonly LogService _log;
-    private readonly JsonSerializerOptions _options = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     public ConfigService(AppPaths paths, LogService log)
     {
@@ -29,7 +29,7 @@ internal sealed class ConfigService
             }
 
             var json = File.ReadAllText(_paths.ConfigPath);
-            var config = JsonSerializer.Deserialize<AppConfig>(json, _options) ?? CreateDefault();
+            var config = JsonSerializer.Deserialize<AppConfig>(json, Options) ?? CreateDefault();
             var changed = Normalize(config);
             if (changed)
             {
@@ -50,12 +50,42 @@ internal sealed class ConfigService
         _paths.Ensure();
         var temp = _paths.ConfigPath + ".tmp";
         var backup = _paths.ConfigPath + ".bak";
-        File.WriteAllText(temp, JsonSerializer.Serialize(config, _options));
+        File.WriteAllText(temp, JsonSerializer.Serialize(config, Options));
         if (File.Exists(_paths.ConfigPath))
         {
             File.Copy(_paths.ConfigPath, backup, true);
         }
         File.Move(temp, _paths.ConfigPath, true);
+    }
+
+    public static AppConfig Clone(AppConfig config)
+    {
+        var json = Serialize(config);
+        return Deserialize(json);
+    }
+
+    public static bool AreEquivalent(AppConfig left, AppConfig right)
+    {
+        return string.Equals(Serialize(left), Serialize(right), StringComparison.Ordinal);
+    }
+
+    public static string Serialize(AppConfig config)
+    {
+        return JsonSerializer.Serialize(config, Options);
+    }
+
+    public static AppConfig Deserialize(string json)
+    {
+        return JsonSerializer.Deserialize<AppConfig>(json, Options) ?? new AppConfig();
+    }
+
+    public static void CopyInto(AppConfig target, AppConfig source)
+    {
+        var clone = Clone(source);
+        target.ConfigVersion = clone.ConfigVersion;
+        target.Dock = clone.Dock;
+        target.FolderPanel = clone.FolderPanel;
+        target.Items = clone.Items;
     }
 
     private static AppConfig CreateDefault()
@@ -119,6 +149,10 @@ internal sealed class ConfigService
             item.IconPath ??= "";
             item.IconStyle = NormalizeIconStyle(item.IconStyle);
             item.OpenBehavior = NormalizeOpenBehavior(item.OpenBehavior);
+            if (NormalizeFolderGroups(item))
+            {
+                changed = true;
+            }
             if (string.Equals(item.Type, DockItemTypes.File, StringComparison.OrdinalIgnoreCase)
                 && File.Exists(item.Target)
                 && string.Equals(Path.GetExtension(item.Target), ".lnk", StringComparison.OrdinalIgnoreCase))
@@ -150,6 +184,55 @@ internal sealed class ConfigService
         }
 
         return changed;
+    }
+
+    private static bool NormalizeFolderGroups(DockItem item)
+    {
+        var changed = false;
+        item.FolderGroups ??= [];
+        var groups = new List<FolderGroup>();
+        foreach (var group in item.FolderGroups)
+        {
+            if (string.IsNullOrWhiteSpace(group.Name))
+            {
+                changed = true;
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(group.Id))
+            {
+                group.Id = Guid.NewGuid().ToString("N");
+                changed = true;
+            }
+
+            group.Name = group.Name.Trim();
+            group.EntryKeys ??= [];
+            var normalizedKeys = group.EntryKeys
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(NormalizeEntryKey)
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (normalizedKeys.Count != group.EntryKeys.Count || !normalizedKeys.SequenceEqual(group.EntryKeys, StringComparer.Ordinal))
+            {
+                group.EntryKeys = normalizedKeys;
+                changed = true;
+            }
+
+            groups.Add(group);
+        }
+
+        if (groups.Count != item.FolderGroups.Count)
+        {
+            changed = true;
+        }
+        item.FolderGroups = groups;
+        return changed;
+    }
+
+    private static string NormalizeEntryKey(string key)
+    {
+        return key.Trim().Replace('\\', '/').TrimStart('/');
     }
 
     private bool ShouldImportShortcut(string path)

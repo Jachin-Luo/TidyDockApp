@@ -9,11 +9,13 @@ namespace TidyDock.WinForms.UI;
 
 internal sealed class DockForm : Form
 {
+    private const int SeparatorExtent = 12;
     private static readonly Color TransparentBackColor = Color.FromArgb(1, 2, 3);
     private const string ThisPcTarget = "shell:MyComputerFolder";
     private const int HoverAnimationDurationMs = 150;
     private readonly AppConfig _config;
     private readonly ConfigService _configService;
+    private readonly DataBackupService _backupService;
     private readonly IconService _iconService;
     private readonly ShortcutService _shortcutService;
     private readonly FolderService _folderService;
@@ -42,6 +44,7 @@ internal sealed class DockForm : Form
     public DockForm(
         AppConfig config,
         ConfigService configService,
+        DataBackupService backupService,
         IconService iconService,
         ShortcutService shortcutService,
         FolderService folderService,
@@ -51,6 +54,7 @@ internal sealed class DockForm : Form
     {
         _config = config;
         _configService = configService;
+        _backupService = backupService;
         _iconService = iconService;
         _shortcutService = shortcutService;
         _folderService = folderService;
@@ -147,13 +151,40 @@ internal sealed class DockForm : Form
 
     public void ApplySettings()
     {
+        ApplyRuntimeSettings(save: true);
+    }
+
+    public void PreviewSettings(AppConfig draft)
+    {
+        ConfigService.CopyInto(_config, draft);
+        ApplyRuntimeSettings(save: false);
+    }
+
+    public void CommitSettings(AppConfig draft)
+    {
+        ConfigService.CopyInto(_config, draft);
+        ApplyRuntimeSettings(save: true);
+    }
+
+    public void CancelSettings(AppConfig original)
+    {
+        ConfigService.CopyInto(_config, original);
+        ApplyRuntimeSettings(save: false);
+    }
+
+    private void ApplyRuntimeSettings(bool save)
+    {
         _palette = Theme.Get(_config.Dock.Theme);
         TopMost = _config.Dock.AlwaysOnTop;
         _tray.Visible = _config.Dock.ShowTrayIcon;
         _tray.ContextMenuStrip = BuildTrayMenu();
         RecalculateLayout();
         UpdateHotZone();
-        _configService.Save(_config);
+        if (save)
+        {
+            _backupService.CreateAutomaticBackup();
+            _configService.Save(_config);
+        }
         RenderLayeredDock();
     }
 
@@ -377,11 +408,17 @@ internal sealed class DockForm : Form
         var padding = GetContentPadding();
         var slot = GetSlotSize();
         var gap = _config.Dock.IconGap;
+        var offset = 0;
+        for (var i = 0; i < index; i++)
+        {
+            offset += GetItemExtent(i) + gap;
+        }
+
         if (IsVertical())
         {
-            return new Rectangle(padding.Left, padding.Top + index * (slot + gap), slot, slot);
+            return new Rectangle(padding.Left, padding.Top + offset, slot, GetItemExtent(index));
         }
-        return new Rectangle(padding.Left + index * (slot + gap), padding.Top, slot, slot);
+        return new Rectangle(padding.Left + offset, padding.Top, GetItemExtent(index), slot);
     }
 
     private void RecalculateLayout()
@@ -400,8 +437,9 @@ internal sealed class DockForm : Form
         var slot = GetSlotSize();
         var gap = _config.Dock.IconGap;
         var padding = GetContentPadding();
-        var width = IsVertical() ? slot + padding.Left + padding.Right : count * slot + Math.Max(0, count - 1) * gap + padding.Left + padding.Right;
-        var height = IsVertical() ? count * slot + Math.Max(0, count - 1) * gap + padding.Top + padding.Bottom : slot + padding.Top + padding.Bottom;
+        var mainLength = GetItemsMainLength();
+        var width = IsVertical() ? slot + padding.Left + padding.Right : mainLength + padding.Left + padding.Right;
+        var height = IsVertical() ? mainLength + padding.Top + padding.Bottom : slot + padding.Top + padding.Bottom;
         Size = new Size(width, height);
         Bounds = _layoutService.GetDockBounds(_config.Dock, Size);
         Region = new Region(new Rectangle(0, 0, Width, Height));
@@ -410,6 +448,30 @@ internal sealed class DockForm : Form
     private int GetSlotSize()
     {
         return Math.Max(_config.Dock.IconSize + 12, (int)Math.Ceiling(_config.Dock.IconSize * _config.Dock.Magnification) + 8);
+    }
+
+    private int GetItemExtent(int index)
+    {
+        return index >= 0 && index < _config.Items.Count && _config.Items[index].IsSeparator
+            ? SeparatorExtent
+            : GetSlotSize();
+    }
+
+    private int GetItemsMainLength()
+    {
+        if (_config.Items.Count == 0)
+        {
+            return GetSlotSize();
+        }
+
+        var total = 0;
+        for (var i = 0; i < _config.Items.Count; i++)
+        {
+            total += GetItemExtent(i);
+        }
+
+        total += Math.Max(0, _config.Items.Count - 1) * _config.Dock.IconGap;
+        return total;
     }
 
     private Padding GetContentPadding()
@@ -723,7 +785,7 @@ internal sealed class DockForm : Form
 
         _folderFlyout ??= new FolderFlyoutForm(_config, _folderService, _iconService, _log);
         var anchor = itemRect ?? GetItemRect(Math.Max(0, _config.Items.IndexOf(item)));
-        _folderFlyout.ShowFor(item.Target, RectangleToScreen(anchor), _config.Dock.Position);
+        _folderFlyout.ShowFor(item, RectangleToScreen(anchor), _config.Dock.Position);
     }
 
     private static bool ShouldOpenFolderInExplorer(DockItem item)
@@ -790,7 +852,9 @@ internal sealed class DockForm : Form
     {
         if (_settings == null || _settings.IsDisposed)
         {
-            _settings = new SettingsForm(_config, _iconService, _startupService, ApplySettings, AddAppOrFile, AddFolder, AddUrl, AddThisPc, AddSeparator);
+            var original = ConfigService.Clone(_config);
+            var draft = ConfigService.Clone(_config);
+            _settings = new SettingsForm(draft, original, _iconService, _shortcutService, _startupService, _backupService, PreviewSettings, CommitSettings, CancelSettings);
         }
         _settings.Show();
         _settings.Activate();

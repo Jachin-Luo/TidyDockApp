@@ -17,7 +17,7 @@ internal sealed class FolderService
 
             var maxItems = Math.Clamp(settings.MaxItems, 20, 1000);
             var entries = Directory.EnumerateFileSystemEntries(path)
-                .Select(CreateEntry)
+                .Select(entryPath => CreateEntry(path, entryPath))
                 .Where(entry => entry != null)
                 .Cast<FolderEntry>()
                 .Where(entry => settings.ShowHiddenFiles || !IsHidden(entry.Path))
@@ -47,7 +47,13 @@ internal sealed class FolderService
         }
     }
 
-    private static FolderEntry? CreateEntry(string path)
+    public static string CreateEntryKey(string rootPath, string entryPath, bool isDirectory)
+    {
+        var relative = Path.GetRelativePath(rootPath, entryPath).Replace('\\', '/').TrimStart('/');
+        return isDirectory && !relative.EndsWith("/", StringComparison.Ordinal) ? relative + "/" : relative;
+    }
+
+    private static FolderEntry? CreateEntry(string rootPath, string path)
     {
         try
         {
@@ -56,6 +62,7 @@ internal sealed class FolderService
             return new FolderEntry
             {
                 Path = path,
+                EntryKey = CreateEntryKey(rootPath, path, isDirectory),
                 IsDirectory = isDirectory,
                 IsShortcut = isShortcut,
                 Name = isShortcut ? Path.GetFileNameWithoutExtension(path) : Path.GetFileName(path)

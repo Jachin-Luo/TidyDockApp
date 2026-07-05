@@ -9,11 +9,18 @@ namespace TidyDock.WinForms.UI;
 
 internal sealed class FolderFlyoutForm : Form
 {
+    private const int AnimationDurationMs = 140;
+    private const int AnimationOffset = 10;
+    private const int GroupHeaderHeight = 30;
+    private const int GroupGap = 12;
+
     private readonly AppConfig _config;
     private readonly FolderService _folderService;
     private readonly IconService _iconService;
     private readonly LogService _log;
     private readonly System.Windows.Forms.Timer _closeTimer = new() { Interval = 650 };
+    private readonly System.Windows.Forms.Timer _animationTimer = new() { Interval = 16 };
+    private readonly Stopwatch _animationClock = new();
     private readonly ToolTip _nameToolTip = new()
     {
         AutoPopDelay = 6000,
@@ -27,12 +34,22 @@ internal sealed class FolderFlyoutForm : Form
     private Rectangle _backRect;
     private Rectangle _explorerRect;
     private Rectangle _closeRect;
+    private DockItem? _rootItem;
+    private string _rootPath = "";
     private string _currentPath = "";
     private FolderReadResult? _result;
     private bool _loading;
     private int _loadVersion;
     private int _hoverIndex = -1;
     private int _scrollOffset;
+    private FlyoutAnimationState _animationState = FlyoutAnimationState.None;
+    private Point _baseLocation;
+    private Point _animationStartOffset;
+    private Point _animationEndOffset;
+    private Point _animationCurrentOffset;
+    private Point _closeOffset = new(0, AnimationOffset);
+    private byte _animationStartAlpha;
+    private byte _animationAlpha = 255;
 
     public FolderFlyoutForm(AppConfig config, FolderService folderService, IconService iconService, LogService log)
     {
@@ -53,7 +70,7 @@ internal sealed class FolderFlyoutForm : Form
 
         MouseMove += OnMouseMove;
         MouseWheel += OnMouseWheel;
-        MouseLeave += delegate { _nameToolTip.Hide(this); StartCloseTimer(); };
+        MouseLeave += delegate { Cursor = Cursors.Default; _nameToolTip.Hide(this); StartCloseTimer(); };
         MouseEnter += delegate { _closeTimer.Stop(); };
         MouseDown += OnMouseDown;
         Deactivate += delegate { StartCloseTimer(); };
@@ -61,14 +78,15 @@ internal sealed class FolderFlyoutForm : Form
         {
             if (e.KeyCode == Keys.Escape)
             {
-                Hide();
+                CloseWithAnimation();
             }
         };
         _closeTimer.Tick += delegate
         {
             _closeTimer.Stop();
-            Hide();
+            CloseWithAnimation();
         };
+        _animationTimer.Tick += delegate { StepAnimation(); };
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -90,26 +108,31 @@ internal sealed class FolderFlyoutForm : Form
         if (disposing)
         {
             _closeTimer.Dispose();
+            _animationTimer.Dispose();
+            _animationClock.Stop();
             _nameToolTip.Dispose();
         }
         base.Dispose(disposing);
     }
 
-    public void ShowFor(string path, Rectangle anchorScreen, string dockPosition)
+    public void ShowFor(DockItem item, Rectangle anchorScreen, string dockPosition)
     {
         _palette = Theme.Get(_config.Dock.Theme);
+        _rootItem = item;
+        _rootPath = item.Target;
         _history.Clear();
-        _currentPath = path;
+        _currentPath = item.Target;
         _result = null;
         _loading = true;
         _scrollOffset = 0;
         _hoverIndex = -1;
         _nameToolTip.Hide(this);
         PositionNear(anchorScreen, dockPosition);
+        StartOpenAnimation(dockPosition);
         Show();
         BringToFront();
         RenderLayeredFlyout();
-        LoadFolder(path, addHistory: false);
+        LoadFolder(item.Target, addHistory: false);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -131,6 +154,7 @@ internal sealed class FolderFlyoutForm : Form
         _currentPath = path;
         _result = null;
         _loading = true;
+        _scrollOffset = 0;
         _hoverIndex = -1;
         _nameToolTip.Hide(this);
         RenderLayeredFlyout();
@@ -205,14 +229,16 @@ internal sealed class FolderFlyoutForm : Form
 
         try
         {
-            var topPos = new NativeMethods.PointNative(Left, Top);
+            var topPos = new NativeMethods.PointNative(
+                _baseLocation.X + _animationCurrentOffset.X,
+                _baseLocation.Y + _animationCurrentOffset.Y);
             var size = new NativeMethods.SizeNative(Width, Height);
             var source = new NativeMethods.PointNative(0, 0);
             var blend = new NativeMethods.BlendFunction
             {
                 BlendOp = NativeMethods.AcSrcOver,
                 BlendFlags = 0,
-                SourceConstantAlpha = 255,
+                SourceConstantAlpha = _animationAlpha,
                 AlphaFormat = NativeMethods.AcSrcAlpha
             };
             _ = NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref topPos, ref size, memoryDc, ref source, 0, ref blend, NativeMethods.UlwAlpha);
@@ -300,12 +326,23 @@ internal sealed class FolderFlyoutForm : Form
             return;
         }
 
+        if (ShouldShowGroupedSections())
+        {
+            DrawGroupedEntries(graphics, content, _result.Entries);
+            return;
+        }
+
+        DrawEntryGrid(graphics, content, _result.Entries);
+    }
+
+    private void DrawEntryGrid(Graphics graphics, Rectangle content, IReadOnlyList<FolderEntry> entries)
+    {
         var cellWidth = 92;
         var cellHeight = 88;
         var columns = Math.Max(1, content.Width / cellWidth);
         var xPad = (content.Width - columns * cellWidth) / 2;
-        var rows = (int)Math.Ceiling(_result.Entries.Count / (double)columns);
-        var bottomReserved = _result.IsTruncated ? 34 : 18;
+        var rows = (int)Math.Ceiling(entries.Count / (double)columns);
+        var bottomReserved = _result?.IsTruncated == true ? 34 : 18;
         var viewport = new Rectangle(content.Left, content.Top, content.Width - 10, Math.Max(1, content.Height - bottomReserved));
         var maxScroll = Math.Max(0, rows * cellHeight - viewport.Height);
         _scrollOffset = Math.Clamp(_scrollOffset, 0, maxScroll);
@@ -315,11 +352,65 @@ internal sealed class FolderFlyoutForm : Form
 
         var state = graphics.Save();
         graphics.SetClip(viewport, CombineMode.Replace);
-        for (var i = 0; i < _result.Entries.Count; i++)
+        DrawEntryCells(graphics, entries, viewport, content.Left + xPad, content.Top - _scrollOffset, cellWidth, cellHeight, 0);
+        graphics.Restore(state);
+
+        DrawTruncatedHint(graphics, content, nameFont, muted);
+        DrawScrollBar(graphics, content, viewport, maxScroll, rows * cellHeight);
+    }
+
+    private void DrawGroupedEntries(Graphics graphics, Rectangle content, IReadOnlyList<FolderEntry> entries)
+    {
+        var sections = BuildGroupSections(entries);
+        var cellWidth = 92;
+        var cellHeight = 88;
+        var columns = Math.Max(1, content.Width / cellWidth);
+        var xPad = (content.Width - columns * cellWidth) / 2;
+        var bottomReserved = _result?.IsTruncated == true ? 34 : 18;
+        var viewport = new Rectangle(content.Left, content.Top, content.Width - 10, Math.Max(1, content.Height - bottomReserved));
+        var totalHeight = sections.Sum(section => GroupHeaderHeight + ((int)Math.Ceiling(section.Entries.Count / (double)columns) * cellHeight) + GroupGap);
+        var maxScroll = Math.Max(0, totalHeight - viewport.Height);
+        _scrollOffset = Math.Clamp(_scrollOffset, 0, maxScroll);
+
+        using var nameFont = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular, GraphicsUnit.Point);
+        using var headerFont = new Font("Microsoft YaHei UI", 8.8F, FontStyle.Bold, GraphicsUnit.Point);
+        using var text = new SolidBrush(_palette.Text);
+        using var muted = new SolidBrush(_palette.MutedText);
+
+        var state = graphics.Save();
+        graphics.SetClip(viewport, CombineMode.Replace);
+        var y = content.Top - _scrollOffset;
+        var drawIndex = 0;
+        foreach (var section in sections)
+        {
+            var headerRect = new Rectangle(content.Left + 2, y + 2, viewport.Width - 8, 24);
+            if (headerRect.Bottom > viewport.Top && headerRect.Top < viewport.Bottom)
+            {
+                DrawGroupHeader(graphics, headerRect, section.Title, section.Entries.Count, headerFont, text, muted);
+            }
+
+            y += GroupHeaderHeight;
+            DrawEntryCells(graphics, section.Entries, viewport, content.Left + xPad, y, cellWidth, cellHeight, drawIndex);
+            drawIndex += section.Entries.Count;
+            y += (int)Math.Ceiling(section.Entries.Count / (double)columns) * cellHeight + GroupGap;
+        }
+        graphics.Restore(state);
+
+        DrawTruncatedHint(graphics, content, nameFont, muted);
+        DrawScrollBar(graphics, content, viewport, maxScroll, totalHeight);
+    }
+
+    private void DrawEntryCells(Graphics graphics, IReadOnlyList<FolderEntry> entries, Rectangle viewport, int left, int top, int cellWidth, int cellHeight, int indexOffset)
+    {
+        using var nameFont = new Font("Microsoft YaHei UI", 8.2F, FontStyle.Regular, GraphicsUnit.Point);
+        using var text = new SolidBrush(_palette.Text);
+        var columns = Math.Max(1, viewport.Width / cellWidth);
+
+        for (var i = 0; i < entries.Count; i++)
         {
             var row = i / columns;
             var col = i % columns;
-            var rect = new Rectangle(content.Left + xPad + col * cellWidth, content.Top + row * cellHeight - _scrollOffset, cellWidth - 8, cellHeight - 6);
+            var rect = new Rectangle(left + col * cellWidth, top + row * cellHeight, cellWidth - 8, cellHeight - 6);
             if (rect.Bottom <= viewport.Top)
             {
                 continue;
@@ -329,20 +420,21 @@ internal sealed class FolderFlyoutForm : Form
                 break;
             }
 
-            var entry = _result.Entries[i];
+            var entry = entries[i];
+            var drawIndex = indexOffset + i;
             var hitBounds = Rectangle.Intersect(rect, viewport);
             if (!hitBounds.IsEmpty)
             {
-                _entryHits.Add(new EntryHit(i, hitBounds, entry));
+                _entryHits.Add(new EntryHit(drawIndex, hitBounds, entry));
             }
-            if (i == _hoverIndex)
+            if (drawIndex == _hoverIndex)
             {
                 using var hoverPath = RoundedRect(rect, 10);
                 using var hover = new SolidBrush(WithAlpha(_palette.PanelAlt, _palette.IsDark ? 0.5 : 0.7));
                 graphics.FillPath(hover, hoverPath);
             }
 
-            var icon = _iconService.GetIcon(_result.Entries[i], 40);
+            var icon = _iconService.GetIcon(entry, 40);
             var iconRect = new Rectangle(rect.Left + (rect.Width - 40) / 2, rect.Top + 8, 40, 40);
             graphics.DrawImage(icon, iconRect);
 
@@ -356,22 +448,77 @@ internal sealed class FolderFlyoutForm : Form
             };
             graphics.DrawString(entry.Name, nameFont, text, nameRect, nameFormat);
         }
-        graphics.Restore(state);
+    }
 
-        if (_result.IsTruncated)
+    private void DrawGroupHeader(Graphics graphics, Rectangle rect, string title, int count, Font font, Brush text, Brush muted)
+    {
+        using var fillPath = RoundedRect(new Rectangle(rect.Left, rect.Top + 1, rect.Width, rect.Height - 2), 9);
+        using var fill = new SolidBrush(WithAlpha(_palette.PanelAlt, _palette.IsDark ? 0.38 : 0.56));
+        using var border = new Pen(WithAlpha(_palette.Border, 0.5));
+        graphics.FillPath(fill, fillPath);
+        graphics.DrawPath(border, fillPath);
+
+        using var titleFormat = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+        var titleRect = new Rectangle(rect.Left + 10, rect.Top, rect.Width - 72, rect.Height);
+        graphics.DrawString(title, font, text, titleRect, titleFormat);
+
+        using var countFormat = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
+        var countRect = new Rectangle(rect.Right - 64, rect.Top, 54, rect.Height);
+        graphics.DrawString(count.ToString(), font, muted, countRect, countFormat);
+    }
+
+    private void DrawTruncatedHint(Graphics graphics, Rectangle content, Font font, Brush brush)
+    {
+        if (_result?.IsTruncated != true)
         {
-            var hint = string.Format("\u4ec5\u663e\u793a\u524d {0} \u9879\uff0c\u53ef\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u67e5\u770b\u5168\u90e8", _config.FolderPanel.MaxItems);
-            graphics.DrawString(hint, nameFont, muted, new Rectangle(content.Left + 4, content.Bottom - 20, content.Width - 8, 18));
+            return;
         }
 
-        if (maxScroll > 0)
+        var hint = string.Format("\u4ec5\u663e\u793a\u524d {0} \u9879\uff0c\u53ef\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u67e5\u770b\u5168\u90e8", _config.FolderPanel.MaxItems);
+        graphics.DrawString(hint, font, brush, new Rectangle(content.Left + 4, content.Bottom - 20, content.Width - 8, 18));
+    }
+
+    private void DrawScrollBar(Graphics graphics, Rectangle content, Rectangle viewport, int maxScroll, int totalContentHeight)
+    {
+        if (maxScroll <= 0)
         {
-            var track = new Rectangle(content.Right - 4, viewport.Top + 2, 3, viewport.Height - 4);
-            var thumbHeight = Math.Max(24, (int)(track.Height * (viewport.Height / (double)(rows * cellHeight))));
-            var thumbTop = track.Top + (int)((track.Height - thumbHeight) * (_scrollOffset / (double)maxScroll));
-            using var scroll = new SolidBrush(WithAlpha(_palette.MutedText, 0.45));
-            graphics.FillRectangle(scroll, new Rectangle(track.Left, thumbTop, track.Width, thumbHeight));
+            return;
         }
+
+        var track = new Rectangle(content.Right - 4, viewport.Top + 2, 3, viewport.Height - 4);
+        var thumbHeight = Math.Max(24, (int)(track.Height * (viewport.Height / (double)Math.Max(1, totalContentHeight))));
+        var thumbTop = track.Top + (int)((track.Height - thumbHeight) * (_scrollOffset / (double)maxScroll));
+        using var scroll = new SolidBrush(WithAlpha(_palette.MutedText, 0.45));
+        graphics.FillRectangle(scroll, new Rectangle(track.Left, thumbTop, track.Width, thumbHeight));
+    }
+
+    private List<GroupSection> BuildGroupSections(IReadOnlyList<FolderEntry> entries)
+    {
+        var sections = new List<GroupSection>();
+        var usedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var group in _rootItem?.FolderGroups ?? [])
+        {
+            var groupKeys = group.EntryKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var groupEntries = entries.Where(entry => groupKeys.Contains(entry.EntryKey)).ToList();
+            if (groupEntries.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (var entry in groupEntries)
+            {
+                usedKeys.Add(entry.EntryKey);
+            }
+            sections.Add(new GroupSection(group.Name, groupEntries));
+        }
+
+        var ungrouped = entries.Where(entry => !usedKeys.Contains(entry.EntryKey)).ToList();
+        if (ungrouped.Count > 0)
+        {
+            sections.Add(new GroupSection("\u672a\u5206\u7ec4", ungrouped));
+        }
+
+        return sections.Count > 0 ? sections : [new GroupSection("\u5168\u90e8", entries.ToList())];
     }
 
     private void DrawIconButton(Graphics graphics, Rectangle rect, string text, bool enabled)
@@ -398,6 +545,7 @@ internal sealed class FolderFlyoutForm : Form
     private void OnMouseMove(object? sender, MouseEventArgs e)
     {
         _closeTimer.Stop();
+        Cursor = Cursors.Default;
         var hit = _entryHits.FirstOrDefault(hit => hit.Bounds.Contains(e.Location));
         var index = hit?.Index ?? -1;
         if (_hoverIndex != index)
@@ -410,6 +558,10 @@ internal sealed class FolderFlyoutForm : Form
             }
             RenderLayeredFlyout();
         }
+        else if (hit is null)
+        {
+            _nameToolTip.Hide(this);
+        }
     }
 
     private void OnMouseDown(object? sender, MouseEventArgs e)
@@ -421,7 +573,7 @@ internal sealed class FolderFlyoutForm : Form
 
         if (_closeRect.Contains(e.Location))
         {
-            Hide();
+            CloseWithAnimation();
             return;
         }
 
@@ -480,10 +632,151 @@ internal sealed class FolderFlyoutForm : Form
         _closeTimer.Start();
     }
 
+    private void StartOpenAnimation(string dockPosition)
+    {
+        _closeTimer.Stop();
+        _animationTimer.Stop();
+        _animationClock.Restart();
+        _animationState = FlyoutAnimationState.Opening;
+        _baseLocation = Location;
+        _animationStartOffset = GetOpenOffset(dockPosition);
+        _closeOffset = _animationStartOffset;
+        _animationEndOffset = Point.Empty;
+        _animationCurrentOffset = _animationStartOffset;
+        _animationStartAlpha = 0;
+        _animationAlpha = 0;
+        _animationTimer.Start();
+    }
+
+    private void CloseWithAnimation()
+    {
+        if (!Visible)
+        {
+            Hide();
+            return;
+        }
+
+        if (_animationState == FlyoutAnimationState.Closing)
+        {
+            return;
+        }
+
+        _closeTimer.Stop();
+        _nameToolTip.Hide(this);
+        _animationTimer.Stop();
+        _animationClock.Restart();
+        _animationState = FlyoutAnimationState.Closing;
+        _animationStartOffset = _animationCurrentOffset;
+        _animationEndOffset = _closeOffset;
+        _animationStartAlpha = Math.Max(_animationAlpha, (byte)1);
+        _animationAlpha = _animationStartAlpha;
+        _animationTimer.Start();
+    }
+
+    private void StepAnimation()
+    {
+        var progress = Math.Clamp(_animationClock.ElapsedMilliseconds / (double)AnimationDurationMs, 0, 1);
+        var eased = EaseOutCubic(progress);
+
+        if (_animationState == FlyoutAnimationState.Opening)
+        {
+            _animationAlpha = (byte)Math.Clamp((int)Math.Round(_animationStartAlpha + ((255 - _animationStartAlpha) * eased)), 0, 255);
+            _animationCurrentOffset = Lerp(_animationStartOffset, Point.Empty, eased);
+            RenderLayeredFlyout();
+
+            if (progress >= 1)
+            {
+                FinishAnimation();
+            }
+
+            return;
+        }
+
+        if (_animationState == FlyoutAnimationState.Closing)
+        {
+            _animationAlpha = (byte)Math.Clamp((int)Math.Round(_animationStartAlpha * (1 - eased)), 0, 255);
+            _animationCurrentOffset = Lerp(_animationStartOffset, _animationEndOffset, eased);
+            RenderLayeredFlyout();
+
+            if (progress >= 1)
+            {
+                _animationTimer.Stop();
+                _animationClock.Reset();
+                _animationState = FlyoutAnimationState.None;
+                _animationCurrentOffset = Point.Empty;
+                _animationAlpha = 255;
+                Hide();
+            }
+        }
+    }
+
+    private void FinishAnimation()
+    {
+        _animationTimer.Stop();
+        _animationClock.Reset();
+        _animationState = FlyoutAnimationState.None;
+        _animationCurrentOffset = Point.Empty;
+        _animationAlpha = 255;
+        Location = _baseLocation;
+        RenderLayeredFlyout();
+    }
+
+    private static Point GetOpenOffset(string dockPosition)
+    {
+        return dockPosition switch
+        {
+            "top" => new Point(0, -AnimationOffset),
+            "left" => new Point(-AnimationOffset, 0),
+            "right" => new Point(AnimationOffset, 0),
+            _ => new Point(0, AnimationOffset)
+        };
+    }
+
+    private static Point Lerp(Point from, Point to, double progress)
+    {
+        return new Point(
+            (int)Math.Round(from.X + ((to.X - from.X) * progress)),
+            (int)Math.Round(from.Y + ((to.Y - from.Y) * progress)));
+    }
+
+    private static double EaseOutCubic(double value)
+    {
+        var t = 1 - Math.Clamp(value, 0, 1);
+        return 1 - (t * t * t);
+    }
+
     private string GetTitle()
     {
         var name = Path.GetFileName(_currentPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         return string.IsNullOrWhiteSpace(name) ? _currentPath : name;
+    }
+
+    private bool ShouldShowGroupedSections()
+    {
+        return IsRootFolder()
+            && _rootItem?.FolderGroups.Count > 0
+            && _result is not null
+            && string.IsNullOrWhiteSpace(_result.ErrorMessage);
+    }
+
+    private bool IsRootFolder()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_rootPath) || string.IsNullOrWhiteSpace(_currentPath))
+            {
+                return false;
+            }
+
+            return string.Equals(
+                Path.GetFullPath(_rootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(_currentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
@@ -504,4 +797,12 @@ internal sealed class FolderFlyoutForm : Form
     }
 
     private sealed record EntryHit(int Index, Rectangle Bounds, FolderEntry Entry);
+    private sealed record GroupSection(string Title, List<FolderEntry> Entries);
+
+    private enum FlyoutAnimationState
+    {
+        None,
+        Opening,
+        Closing
+    }
 }

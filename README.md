@@ -102,6 +102,12 @@ src\TidyDock\dist\TidyDock-portable.zip
 %LOCALAPPDATA%\Programs\TidyDock
 ```
 
+WinForms v0.2 预览版的当前用户安装目录为：
+
+```text
+%LOCALAPPDATA%\Programs\TidyDock.WinForms
+```
+
 ## 本地数据
 
 TidyDock 的数据保存在本地：
@@ -115,6 +121,17 @@ TidyDock 的数据保存在本地：
   logs\error.log
 ```
 
+WinForms v0.2 使用独立配置目录：
+
+```text
+%APPDATA%\TidyDock\winforms\
+  settings.json
+  settings.json.bak
+  icons\
+  shortcuts\
+  logs\
+```
+
 说明：
 
 - `settings.json` 保存 Dock 配置和 Dock 项
@@ -122,6 +139,8 @@ TidyDock 的数据保存在本地：
 - `cache\icons` 保存图标缓存
 - `shortcuts` 保存导入后的 `.lnk` 快捷方式副本
 - `logs\error.log` 保存本地异常日志
+- 默认卸载会保留 WinForms v0.2 配置目录，重装后可恢复 Dock 配置；如需清除配置，请使用 `Uninstall-CurrentUser.ps1 -RemoveUserData` 或开始菜单里的“卸载并清除配置 TidyDock”。
+- WinForms v0.2 设置页提供“数据与备份”区域，可导出包含 `settings.json`、`icons\`、`shortcuts\` 的 zip 备份；导入备份会先写入设置草稿，仍需点击“预览”或“确定”应用。
 
 移除 Dock 项不会删除用户原始文件。清理图标缓存也不会影响用户文件。
 

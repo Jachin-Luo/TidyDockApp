@@ -1,3 +1,7 @@
+param(
+    [switch]$RemoveUserData
+)
+
 $ErrorActionPreference = "Stop"
 
 Get-Process -Name TidyDock -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -15,4 +19,17 @@ if (Test-Path $startMenu) {
     Remove-Item -LiteralPath $startMenu -Recurse -Force
 }
 
-Write-Host "TidyDock WinForms removed for current user."
+if ($RemoveUserData) {
+    $userData = Join-Path $env:APPDATA "TidyDock\winforms"
+    if (Test-Path $userData) {
+        $resolvedUserData = (Resolve-Path -LiteralPath $userData).Path
+        $resolvedAppData = (Resolve-Path -LiteralPath $env:APPDATA).Path.TrimEnd('\') + '\'
+        if (-not $resolvedUserData.StartsWith($resolvedAppData, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to remove user data outside APPDATA: $resolvedUserData"
+        }
+        Remove-Item -LiteralPath $resolvedUserData -Recurse -Force
+    }
+    Write-Host "TidyDock WinForms removed for current user. User configuration was also removed."
+} else {
+    Write-Host "TidyDock WinForms removed for current user. User configuration was kept in %APPDATA%\TidyDock\winforms."
+}
