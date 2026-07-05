@@ -256,13 +256,19 @@ internal sealed class FolderFlyoutForm : Form
         _entryHits.Clear();
 
         var bounds = new Rectangle(1, 1, Width - 2, Height - 2);
+        var highContrast = _config.Dock.HighContrastDock;
+        var shadowAlpha = highContrast ? (_palette.IsDark ? 122 : 70) : (_palette.IsDark ? 86 : 44);
+        var fillAlphaTop = highContrast ? (_palette.IsDark ? 0.98 : 0.96) : (_palette.IsDark ? 0.92 : 0.9);
+        var fillAlphaBottom = highContrast ? (_palette.IsDark ? 0.94 : 0.93) : (_palette.IsDark ? 0.82 : 0.86);
+        var borderAlpha = highContrast ? (_palette.IsDark ? 0.95 : 0.98) : (_palette.IsDark ? 0.74 : 0.86);
+
         using var shadowPath = RoundedRect(new Rectangle(bounds.X + 4, bounds.Y + 8, bounds.Width - 8, bounds.Height - 7), 18);
-        using var shadow = new SolidBrush(Color.FromArgb(_palette.IsDark ? 86 : 44, _palette.Shadow));
+        using var shadow = new SolidBrush(Color.FromArgb(shadowAlpha, _palette.Shadow));
         graphics.FillPath(shadow, shadowPath);
 
         using var path = RoundedRect(bounds, 18);
-        using var fill = new LinearGradientBrush(bounds, WithAlpha(_palette.Panel, _palette.IsDark ? 0.92 : 0.9), WithAlpha(_palette.PanelAlt, _palette.IsDark ? 0.82 : 0.86), 90f);
-        using var border = new Pen(WithAlpha(_palette.Border, _palette.IsDark ? 0.74 : 0.86));
+        using var fill = new LinearGradientBrush(bounds, WithAlpha(_palette.Panel, fillAlphaTop), WithAlpha(_palette.PanelAlt, fillAlphaBottom), 90f);
+        using var border = new Pen(WithAlpha(_palette.Border, borderAlpha));
         graphics.FillPath(fill, path);
         graphics.DrawPath(border, path);
 

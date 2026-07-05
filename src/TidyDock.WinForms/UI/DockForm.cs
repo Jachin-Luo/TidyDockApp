@@ -1226,14 +1226,46 @@ internal sealed class DockForm : Form
 
     private ContextMenuStrip CreateContextMenu()
     {
-        return new ContextMenuStrip
+        var menu = new ContextMenuStrip
         {
-            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point),
+            Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point),
             ShowImageMargin = false,
+            Padding = new Padding(6),
             BackColor = _palette.Panel,
             ForeColor = _palette.Text,
             Renderer = new ToolStripProfessionalRenderer(new DockMenuColorTable(_palette))
         };
+        menu.Opening += delegate { ApplyMenuMetrics(menu.Items, menu.Font); };
+        return menu;
+    }
+
+    private static void ApplyMenuMetrics(ToolStripItemCollection items, Font font)
+    {
+        foreach (ToolStripItem item in items)
+        {
+            if (item is ToolStripSeparator separator)
+            {
+                separator.AutoSize = false;
+                separator.Height = 8;
+                continue;
+            }
+
+            var textWidth = TextRenderer.MeasureText(item.Text, font).Width;
+            var extraWidth = item is ToolStripMenuItem menuItem && menuItem.DropDownItems.Count > 0 ? 64 : 42;
+            item.AutoSize = false;
+            item.Size = new Size(Math.Max(220, textWidth + extraWidth), 36);
+
+            if (item is ToolStripMenuItem childMenu && childMenu.DropDownItems.Count > 0)
+            {
+                if (childMenu.DropDown is ToolStripDropDownMenu dropDown)
+                {
+                    dropDown.ShowImageMargin = false;
+                    dropDown.Padding = new Padding(6);
+                }
+
+                ApplyMenuMetrics(childMenu.DropDownItems, font);
+            }
+        }
     }
 
     private void ShowSettings()

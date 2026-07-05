@@ -6,9 +6,10 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [tidydock-winforms-code-review-20260705.md](../code-review/tidydock-winforms-code-review-20260705.md) | WinForms 代码审查记录，聚焦发布依赖、资源增长、大目录读取和备份校验风险。 |
+| [tidydock-winforms-code-review-20260705.md](tidydock-winforms-code-review-20260705.md) | WinForms 代码审查记录，聚焦发布依赖、资源增长、大目录读取和备份校验风险。 |
 | [TidyDock_产品体验优化建议_20260705.md](TidyDock_产品体验优化建议_20260705.md) | 第一轮产品体验优化建议，聚焦用户使用、交互体验、UI 设计和功能取舍。 |
 | [TidyDock_优化后全面复评_20260705.md](TidyDock_优化后全面复评_20260705.md) | 优化落地后的全面复评，聚焦剩余发布硬化项。 |
+| [TidyDock_项目审视优化建议_20260627.md](TidyDock_项目审视优化建议_20260627.md) | 早期项目审视与优化建议，作为历史评估记录归档。 |
 
 ## 归档规则
 

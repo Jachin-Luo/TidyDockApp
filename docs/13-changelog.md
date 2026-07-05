@@ -68,6 +68,7 @@
 - 文件夹 Flyout 短路径进一步改为末两级路径，窄窗口下更容易判断当前位置。
 - 新增 `Test-ReleaseHardening.ps1`，自动执行 10 分钟 idle 和 50 项 Dock 压测，并在结束后恢复用户配置。
 - 新增 GitHub Release 自动发布流程：推送 `v*` tag 后自动构建 WinForms v0.2 installer、portable zip 和 SHA256 校验文件，并上传到 GitHub Release。
+- 根据最新复评继续优化精致度：设置页快捷方式目标显示改为解析真实目标，诊断入口并入数据按钮行，Dock 项操作按钮按选中状态启用，分组管理表格自适应列宽，菜单尺寸提升，Flyout 复用增强对比度。
 - 准备 `0.2.0` 开发计划和问题积压。
 
 ## 0.1.1 - 2026-07-01

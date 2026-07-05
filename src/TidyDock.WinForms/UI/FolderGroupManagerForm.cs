@@ -28,9 +28,9 @@ internal sealed class FolderGroupManagerForm : Form
         _groups = CloneGroups(item.FolderGroups);
 
         Text = "\u7ba1\u7406\u5206\u7ec4";
-        Width = 760;
-        Height = 520;
-        MinimumSize = new Size(700, 460);
+        Width = 860;
+        Height = 560;
+        MinimumSize = new Size(780, 500);
         StartPosition = FormStartPosition.CenterParent;
         BackColor = _palette.Window;
         ForeColor = _palette.Text;
@@ -62,7 +62,7 @@ internal sealed class FolderGroupManagerForm : Form
             RowCount = 3,
             BackColor = _palette.Window
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -159,7 +159,7 @@ internal sealed class FolderGroupManagerForm : Form
             Margin = new Padding(0)
         };
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
@@ -185,6 +185,7 @@ internal sealed class FolderGroupManagerForm : Form
         _entryList.Columns.Add("\u7c7b\u578b", 72);
         _entryList.Columns.Add("\u6240\u5c5e\u5206\u7ec4", 150);
         _entryList.ItemChecked += delegate { UpdateEntryStatus(); };
+        _entryList.Resize += delegate { ResizeEntryColumns(); };
         panel.Controls.Add(_entryList, 0, 3);
 
         var buttons = new FlowLayoutPanel
@@ -207,7 +208,7 @@ internal sealed class FolderGroupManagerForm : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
+            WrapContents = true,
             BackColor = _palette.Panel,
             Margin = new Padding(0, 0, 0, 6)
         };
@@ -221,7 +222,7 @@ internal sealed class FolderGroupManagerForm : Form
             TextAlign = ContentAlignment.MiddleLeft
         });
 
-        _searchBox.Width = 180;
+        _searchBox.Width = 240;
         _searchBox.Height = 28;
         _searchBox.BorderStyle = BorderStyle.FixedSingle;
         _searchBox.BackColor = _palette.PanelAlt;
@@ -230,8 +231,8 @@ internal sealed class FolderGroupManagerForm : Form
         _searchBox.TextChanged += delegate { RefreshEntries(); };
         row.Controls.Add(_searchBox);
 
-        _showUngroupedOnly.Text = "\u53ea\u770b\u672a\u5206\u7ec4";
-        _showUngroupedOnly.Width = 138;
+        _showUngroupedOnly.Text = "\u672a\u5206\u7ec4";
+        _showUngroupedOnly.Width = 108;
         _showUngroupedOnly.Palette = _palette;
         _showUngroupedOnly.BackColor = _palette.Panel;
         _showUngroupedOnly.CheckedChanged += delegate
@@ -251,8 +252,8 @@ internal sealed class FolderGroupManagerForm : Form
         };
         row.Controls.Add(_showUngroupedOnly);
 
-        _showCurrentGroupOnly.Text = "\u53ea\u770b\u5f53\u524d\u5206\u7ec4";
-        _showCurrentGroupOnly.Width = 150;
+        _showCurrentGroupOnly.Text = "\u5f53\u524d\u5206\u7ec4";
+        _showCurrentGroupOnly.Width = 128;
         _showCurrentGroupOnly.Palette = _palette;
         _showCurrentGroupOnly.BackColor = _palette.Panel;
         _showCurrentGroupOnly.CheckedChanged += delegate
@@ -341,8 +342,26 @@ internal sealed class FolderGroupManagerForm : Form
             _entryList.Items.Add(row);
         }
         _entryList.EndUpdate();
+        ResizeEntryColumns();
         RestoreEntryListPosition(topKey, focusedKey);
         UpdateEntryStatus(entries.Count);
+    }
+
+    private void ResizeEntryColumns()
+    {
+        if (_entryList.Columns.Count < 3 || _entryList.ClientSize.Width <= 0)
+        {
+            return;
+        }
+
+        var available = Math.Max(360, _entryList.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 8);
+        var typeWidth = 68;
+        var groupWidth = Math.Clamp((int)(available * 0.28), 132, 176);
+        var nameWidth = Math.Max(180, available - typeWidth - groupWidth);
+
+        _entryList.Columns[0].Width = nameWidth;
+        _entryList.Columns[1].Width = typeWidth;
+        _entryList.Columns[2].Width = groupWidth;
     }
 
     private void AddGroup(object? sender, EventArgs e)

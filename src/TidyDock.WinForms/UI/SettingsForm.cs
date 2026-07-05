@@ -49,6 +49,10 @@ internal sealed class SettingsForm : Form
     private Label? _statusLabel;
     private GlassButton? _previewButton;
     private GlassButton? _confirmButton;
+    private GlassButton? _renameButton;
+    private GlassButton? _manageGroupsButton;
+    private GlassButton? _removeButton;
+    private GlassButton? _moreItemButton;
     private ThemePalette _palette;
 
     public SettingsForm(AppConfig config, AppConfig originalConfig, IconService iconService, ShortcutService shortcutService, StartupService startupService, DataBackupService backupService, Action<AppConfig> preview, Action<AppConfig> commit, Action<AppConfig> cancel)
@@ -282,10 +286,8 @@ internal sealed class SettingsForm : Form
             backupRow.Controls.Add(MakeButton("\u5bfc\u51fa\u5907\u4efd", ExportBackup, "primary"));
             backupRow.Controls.Add(MakeButton("\u5bfc\u5165\u5907\u4efd", ImportBackup));
             backupRow.Controls.Add(MakeButton("\u6062\u590d\u6700\u8fd1\u5907\u4efd", RestoreLatestBackup));
+            backupRow.Controls.Add(MakeButton("\u590d\u5236\u8bca\u65ad\u4fe1\u606f", CopyDiagnosticInfo));
             panel.Controls.Add(backupRow);
-            var diagnosticRow = MakeRow();
-            diagnosticRow.Controls.Add(MakeButton("\u590d\u5236\u8bca\u65ad\u4fe1\u606f", CopyDiagnosticInfo));
-            panel.Controls.Add(diagnosticRow);
         });
 
         shell.Controls.Add(BuildFooter(), 0, 2);
@@ -362,6 +364,7 @@ internal sealed class SettingsForm : Form
             _items.DrawColumnHeader += DrawItemTableHeader;
             _items.DrawSubItem += DrawItemTableCell;
             _items.MouseDown += OnItemsMouseDown;
+            _items.SelectedIndexChanged += delegate { UpdateItemControls(); };
             ApplyListTheme();
             panel.Controls.Add(_items);
 
@@ -373,10 +376,14 @@ internal sealed class SettingsForm : Form
             panel.Controls.Add(addRow);
 
             var editRow = MakeRow();
-            editRow.Controls.Add(MakeButton("\u91cd\u547d\u540d", RenameSelected));
-            editRow.Controls.Add(MakeButton("\u7ba1\u7406\u5206\u7ec4", ManageFolderGroupsSelected));
-            editRow.Controls.Add(MakeButton("\u79fb\u9664", RemoveSelected, "danger"));
-            editRow.Controls.Add(MakeButton("\u66f4\u591a\u64cd\u4f5c", ShowMoreItemMenu));
+            _renameButton = MakeButton("\u91cd\u547d\u540d", RenameSelected);
+            _manageGroupsButton = MakeButton("\u7ba1\u7406\u5206\u7ec4", ManageFolderGroupsSelected);
+            _removeButton = MakeButton("\u79fb\u9664", RemoveSelected, "danger");
+            _moreItemButton = MakeButton("\u66f4\u591a\u64cd\u4f5c", ShowMoreItemMenu);
+            editRow.Controls.Add(_renameButton);
+            editRow.Controls.Add(_manageGroupsButton);
+            editRow.Controls.Add(_removeButton);
+            editRow.Controls.Add(_moreItemButton);
             panel.Controls.Add(editRow);
             panel.Controls.Add(MakeCheck("\u4e00\u952e\u64cd\u4f5c\u5305\u542b\u81ea\u5b9a\u4e49\u56fe\u6807", _config.Dock.WrapCustomIcons, value =>
             {
@@ -565,8 +572,9 @@ internal sealed class SettingsForm : Form
     {
         return new ContextMenuStrip
         {
-            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point),
+            Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point),
             ShowImageMargin = false,
+            Padding = new Padding(6),
             BackColor = _palette.Panel,
             ForeColor = _palette.Text
         };
@@ -900,14 +908,18 @@ internal sealed class SettingsForm : Form
     private void ShowMoreItemMenu(object? sender, EventArgs e)
     {
         var menu = CreateContextMenu();
-        menu.Items.Add("\u4e0a\u79fb", null, delegate { MoveSelected(-1); });
-        menu.Items.Add("\u4e0b\u79fb", null, delegate { MoveSelected(1); });
+        var selected = SelectedDockItem();
+        var selectedIndex = SelectedDockIndex();
+        var hasSelection = selected is not null;
+        var canChangeIcon = hasSelection && !selected!.IsSeparator;
+        menu.Items.Add("\u4e0a\u79fb", null, delegate { MoveSelected(-1); }).Enabled = selectedIndex > 0;
+        menu.Items.Add("\u4e0b\u79fb", null, delegate { MoveSelected(1); }).Enabled = selectedIndex >= 0 && selectedIndex < _config.Items.Count - 1;
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("\u66f4\u6362\u56fe\u6807", null, ChangeIconSelected);
-        menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", null, ResetIconSelected);
+        menu.Items.Add("\u66f4\u6362\u56fe\u6807", null, ChangeIconSelected).Enabled = canChangeIcon;
+        menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", null, ResetIconSelected).Enabled = canChangeIcon && !string.IsNullOrWhiteSpace(selected?.IconPath);
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("\u4e00\u952e\u5957\u5706\u89d2\u56fe\u6807", null, delegate { ApplyIconStyleToAll(DockIconStyles.RoundedRect); });
-        menu.Items.Add("\u6062\u590d\u539f\u59cb\u6837\u5f0f", null, delegate { ApplyIconStyleToAll(DockIconStyles.Default); });
+        menu.Items.Add("\u4e00\u952e\u5957\u5706\u89d2\u56fe\u6807", null, delegate { ApplyIconStyleToAll(DockIconStyles.RoundedRect); }).Enabled = _config.Items.Any(item => !item.IsSeparator);
+        menu.Items.Add("\u6062\u590d\u539f\u59cb\u6837\u5f0f", null, delegate { ApplyIconStyleToAll(DockIconStyles.Default); }).Enabled = _config.Items.Any(item => !item.IsSeparator);
         ShowContextMenu(sender, menu);
     }
 
@@ -1152,6 +1164,29 @@ internal sealed class SettingsForm : Form
 
     private void UpdateItemControls()
     {
+        var item = SelectedDockItem();
+        var hasSelection = item is not null;
+        var isFolder = item is not null && string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase);
+
+        if (_renameButton is not null)
+        {
+            _renameButton.Enabled = hasSelection;
+        }
+
+        if (_manageGroupsButton is not null)
+        {
+            _manageGroupsButton.Enabled = isFolder;
+        }
+
+        if (_removeButton is not null)
+        {
+            _removeButton.Enabled = hasSelection;
+        }
+
+        if (_moreItemButton is not null)
+        {
+            _moreItemButton.Enabled = hasSelection;
+        }
     }
 
     private void ApplyTheme()
@@ -1402,6 +1437,12 @@ internal sealed class SettingsForm : Form
             return item.Target;
         }
 
+        var shortcutDisplay = GetShortcutDisplay(item);
+        if (!string.IsNullOrWhiteSpace(shortcutDisplay))
+        {
+            return shortcutDisplay;
+        }
+
         return ShortPathLabel(item.Target);
     }
 
@@ -1417,9 +1458,43 @@ internal sealed class SettingsForm : Form
             return "-";
         }
 
+        var resolved = GetShortcutResolvedTarget(item.Target);
+        var targetText = string.IsNullOrWhiteSpace(resolved)
+            ? item.Target
+            : $"快捷方式：{item.Target}{Environment.NewLine}指向：{resolved}";
+
         return IsBrokenItem(item)
-            ? "\u76ee\u6807\u4e0d\u5b58\u5728\uff1a" + item.Target
-            : item.Target;
+            ? "\u76ee\u6807\u4e0d\u5b58\u5728\uff1a" + targetText
+            : targetText;
+    }
+
+    private static string GetShortcutDisplay(DockItem item)
+    {
+        if (!ShortcutService.IsShortcutFile(item.Target))
+        {
+            return "";
+        }
+
+        var resolved = GetShortcutResolvedTarget(item.Target);
+        if (!string.IsNullOrWhiteSpace(resolved))
+        {
+            return ShortPathLabel(resolved);
+        }
+
+        return string.IsNullOrWhiteSpace(item.Name)
+            ? ShortPathLabel(item.Target)
+            : $"{item.Name}\uff08\u5feb\u6377\u65b9\u5f0f\uff09";
+    }
+
+    private static string GetShortcutResolvedTarget(string target)
+    {
+        if (!ShortcutService.IsShortcutFile(target)
+            || !string.Equals(Path.GetExtension(target), ".lnk", StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+
+        return ShortcutService.ResolveShortcutTarget(target);
     }
 
     private static string ShortPathLabel(string target)
