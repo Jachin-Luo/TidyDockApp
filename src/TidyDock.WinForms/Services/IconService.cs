@@ -282,7 +282,7 @@ internal sealed class IconService : IDisposable
     {
         using var source = Image.FromFile(path);
         using var normalized = NormalizeForTransparentCrop(source);
-        var metrics = FindVisibleMetrics(normalized);
+        var visibleBounds = FindVisibleBounds(normalized);
         var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(Color.Transparent);
@@ -290,8 +290,7 @@ internal sealed class IconService : IDisposable
         graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
         graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
 
-        var canvasBounds = new Rectangle(0, 0, size, size);
-        DrawVisibleImage(graphics, normalized, metrics, canvasBounds, canvasBounds);
+        DrawVisibleImage(graphics, normalized, visibleBounds, new Rectangle(0, 0, size, size));
         return bitmap;
     }
 
@@ -448,9 +447,8 @@ internal sealed class IconService : IDisposable
         var iconBounds = new Rectangle((size - iconSize) / 2, (size - iconSize) / 2, iconSize, iconSize);
 
         using var normalized = NormalizeForTransparentCrop(source);
-        var metrics = FindVisibleMetrics(normalized);
-        var shellBounds = Rectangle.Round(bounds);
-        DrawVisibleImage(graphics, normalized, metrics, iconBounds, shellBounds);
+        var visibleBounds = FindVisibleBounds(normalized);
+        DrawVisibleImage(graphics, normalized, visibleBounds, iconBounds);
         return bitmap;
     }
 
@@ -467,7 +465,7 @@ internal sealed class IconService : IDisposable
         return bitmap;
     }
 
-    private static VisibleImageMetrics FindVisibleMetrics(Bitmap bitmap)
+    private static Rectangle FindVisibleBounds(Bitmap bitmap)
     {
         var bounds = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
         var data = bitmap.LockBits(bounds, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
@@ -481,9 +479,6 @@ internal sealed class IconService : IDisposable
             var top = bitmap.Height;
             var right = -1;
             var bottom = -1;
-            double weightedX = 0;
-            double weightedY = 0;
-            double totalWeight = 0;
             const byte visibleAlphaThreshold = 8;
 
             for (var y = 0; y < bitmap.Height; y++)
@@ -501,20 +496,12 @@ internal sealed class IconService : IDisposable
                     top = Math.Min(top, y);
                     right = Math.Max(right, x);
                     bottom = Math.Max(bottom, y);
-                    weightedX += (x + 0.5) * alpha;
-                    weightedY += (y + 0.5) * alpha;
-                    totalWeight += alpha;
                 }
             }
 
-            if (right < left || bottom < top || totalWeight <= 0)
-            {
-                return new VisibleImageMetrics(bounds, new PointF(bitmap.Width / 2f, bitmap.Height / 2f));
-            }
-
-            var visibleBounds = Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
-            var visualCenter = new PointF((float)(weightedX / totalWeight), (float)(weightedY / totalWeight));
-            return new VisibleImageMetrics(visibleBounds, visualCenter);
+            return right < left || bottom < top
+                ? bounds
+                : Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
         }
         finally
         {
@@ -522,9 +509,8 @@ internal sealed class IconService : IDisposable
         }
     }
 
-    private static void DrawVisibleImage(Graphics graphics, Image source, VisibleImageMetrics metrics, Rectangle targetBounds, Rectangle clampBounds)
+    private static void DrawVisibleImage(Graphics graphics, Image source, Rectangle visibleBounds, Rectangle targetBounds)
     {
-        var visibleBounds = metrics.Bounds;
         if (visibleBounds.Width <= 0 || visibleBounds.Height <= 0)
         {
             graphics.DrawImage(source, targetBounds);
@@ -534,26 +520,11 @@ internal sealed class IconService : IDisposable
         var scale = Math.Min(targetBounds.Width / (double)visibleBounds.Width, targetBounds.Height / (double)visibleBounds.Height);
         var width = Math.Max(1, (int)Math.Round(visibleBounds.Width * scale));
         var height = Math.Max(1, (int)Math.Round(visibleBounds.Height * scale));
-        var destination = new RectangleF(
+        var destination = new Rectangle(
             targetBounds.Left + (targetBounds.Width - width) / 2,
             targetBounds.Top + (targetBounds.Height - height) / 2,
             width,
             height);
-
-        var targetCenterX = targetBounds.Left + targetBounds.Width / 2f;
-        var targetCenterY = targetBounds.Top + targetBounds.Height / 2f;
-        var contentCenterX = destination.Left + (float)((metrics.VisualCenter.X - visibleBounds.Left) * scale);
-        var contentCenterY = destination.Top + (float)((metrics.VisualCenter.Y - visibleBounds.Top) * scale);
-        var shiftX = targetCenterX - contentCenterX;
-        var shiftY = targetCenterY - contentCenterY;
-        var maxShiftX = targetBounds.Width * 0.12f;
-        var maxShiftY = targetBounds.Height * 0.12f;
-        shiftX = Math.Clamp(shiftX, -maxShiftX, maxShiftX);
-        shiftY = Math.Clamp(shiftY, -maxShiftY, maxShiftY);
-        shiftX = Math.Clamp(shiftX, clampBounds.Left - destination.Left, clampBounds.Right - destination.Right);
-        shiftY = Math.Clamp(shiftY, clampBounds.Top - destination.Top, clampBounds.Bottom - destination.Bottom);
-        destination.Offset(shiftX, shiftY);
-
         graphics.DrawImage(source, destination, visibleBounds, GraphicsUnit.Pixel);
     }
 
@@ -575,8 +546,6 @@ internal sealed class IconService : IDisposable
     }
 
     private sealed record CacheEntry(Image Image, LinkedListNode<string> Node);
-
-    private readonly record struct VisibleImageMetrics(Rectangle Bounds, PointF VisualCenter);
 
     [Flags]
     private enum ShellItemImageFactoryFlags
