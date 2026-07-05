@@ -281,6 +281,8 @@ internal sealed class IconService : IDisposable
     private static Bitmap LoadImageIcon(string path, int size)
     {
         using var source = Image.FromFile(path);
+        using var normalized = NormalizeForTransparentCrop(source);
+        var visibleBounds = FindVisibleBounds(normalized);
         var bitmap = new Bitmap(size, size, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(Color.Transparent);
@@ -288,11 +290,7 @@ internal sealed class IconService : IDisposable
         graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
         graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
 
-        var scale = Math.Min(size / (double)source.Width, size / (double)source.Height);
-        var width = Math.Max(1, (int)Math.Round(source.Width * scale));
-        var height = Math.Max(1, (int)Math.Round(source.Height * scale));
-        var bounds = new Rectangle((size - width) / 2, (size - height) / 2, width, height);
-        graphics.DrawImage(source, bounds);
+        DrawVisibleImage(graphics, normalized, visibleBounds, new Rectangle(0, 0, size, size));
         return bitmap;
     }
 
@@ -448,8 +446,86 @@ internal sealed class IconService : IDisposable
         var iconSize = Math.Max(1, (int)Math.Round(size * iconScale));
         var iconBounds = new Rectangle((size - iconSize) / 2, (size - iconSize) / 2, iconSize, iconSize);
 
-        graphics.DrawImage(source, iconBounds);
+        using var normalized = NormalizeForTransparentCrop(source);
+        var visibleBounds = FindVisibleBounds(normalized);
+        DrawVisibleImage(graphics, normalized, visibleBounds, iconBounds);
         return bitmap;
+    }
+
+    private static Bitmap NormalizeForTransparentCrop(Image source)
+    {
+        var bitmap = new Bitmap(source.Width, source.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        graphics.CompositingMode = CompositingMode.SourceOver;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.DrawImage(source, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+        return bitmap;
+    }
+
+    private static Rectangle FindVisibleBounds(Bitmap bitmap)
+    {
+        var bounds = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+        var data = bitmap.LockBits(bounds, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        try
+        {
+            var stride = Math.Abs(data.Stride);
+            var bytes = new byte[stride * bitmap.Height];
+            Marshal.Copy(data.Scan0, bytes, 0, bytes.Length);
+
+            var left = bitmap.Width;
+            var top = bitmap.Height;
+            var right = -1;
+            var bottom = -1;
+            const byte visibleAlphaThreshold = 8;
+
+            for (var y = 0; y < bitmap.Height; y++)
+            {
+                var row = y * stride;
+                for (var x = 0; x < bitmap.Width; x++)
+                {
+                    var alpha = bytes[row + x * 4 + 3];
+                    if (alpha <= visibleAlphaThreshold)
+                    {
+                        continue;
+                    }
+
+                    left = Math.Min(left, x);
+                    top = Math.Min(top, y);
+                    right = Math.Max(right, x);
+                    bottom = Math.Max(bottom, y);
+                }
+            }
+
+            return right < left || bottom < top
+                ? bounds
+                : Rectangle.FromLTRB(left, top, right + 1, bottom + 1);
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+    }
+
+    private static void DrawVisibleImage(Graphics graphics, Image source, Rectangle visibleBounds, Rectangle targetBounds)
+    {
+        if (visibleBounds.Width <= 0 || visibleBounds.Height <= 0)
+        {
+            graphics.DrawImage(source, targetBounds);
+            return;
+        }
+
+        var scale = Math.Min(targetBounds.Width / (double)visibleBounds.Width, targetBounds.Height / (double)visibleBounds.Height);
+        var width = Math.Max(1, (int)Math.Round(visibleBounds.Width * scale));
+        var height = Math.Max(1, (int)Math.Round(visibleBounds.Height * scale));
+        var destination = new Rectangle(
+            targetBounds.Left + (targetBounds.Width - width) / 2,
+            targetBounds.Top + (targetBounds.Height - height) / 2,
+            width,
+            height);
+        graphics.DrawImage(source, destination, visibleBounds, GraphicsUnit.Pixel);
     }
 
     private static System.Drawing.Drawing2D.GraphicsPath RoundedRect(RectangleF bounds, float radius)
