@@ -285,8 +285,8 @@ internal sealed class SettingsForm : Form
             WrapContents = false,
             BackColor = _palette.Window
         };
-        _confirmButton = MakeFooterButton("\u786e\u5b9a", ConfirmSettings, primary: true);
-        _previewButton = MakeFooterButton("\u9884\u89c8", PreviewSettings);
+        _confirmButton = MakeFooterButton("\u4fdd\u5b58\u5e76\u5173\u95ed", ConfirmSettings, primary: true);
+        _previewButton = MakeFooterButton("\u9884\u89c8\u5230 Dock", PreviewSettings);
         buttons.Controls.Add(_confirmButton);
         buttons.Controls.Add(MakeFooterButton("\u53d6\u6d88", CancelSettings));
         buttons.Controls.Add(_previewButton);
@@ -510,7 +510,7 @@ internal sealed class SettingsForm : Form
         {
             Text = text,
             Height = 34,
-            Width = 92,
+            Width = Math.Max(92, TextRenderer.MeasureText(text, Font).Width + 34),
             Palette = _palette,
             Primary = primary,
             BackColor = _palette.Window,

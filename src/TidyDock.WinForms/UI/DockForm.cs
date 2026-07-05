@@ -30,6 +30,7 @@ internal sealed class DockForm : Form
     private readonly Stopwatch _hoverAnimationClock = new();
     private readonly HotZoneForm _hotZone = new();
     private readonly List<Rectangle> _itemRects = [];
+    private readonly List<(Rectangle Bounds, string Action)> _guideRects = [];
     private ThemePalette _palette;
     private int _hoverIndex = -1;
     private int _pressedIndex = -1;
@@ -321,6 +322,13 @@ internal sealed class DockForm : Form
     private void DrawItems(Graphics graphics)
     {
         _itemRects.Clear();
+        _guideRects.Clear();
+        if (ShouldShowEmptyGuide())
+        {
+            DrawEmptyGuide(graphics);
+            return;
+        }
+
         var size = _config.Dock.IconSize;
         for (var i = 0; i < _config.Items.Count; i++)
         {
@@ -353,7 +361,64 @@ internal sealed class DockForm : Form
             var sourceSize = Math.Max(iconSize, (int)Math.Ceiling(size * _config.Dock.Magnification));
             var image = _iconService.GetIcon(item, sourceSize, _config.Dock.WrapCustomIcons);
             graphics.DrawImage(image, iconRect);
+            if (IsBrokenItem(item))
+            {
+                DrawBrokenBadge(graphics, iconRect);
+            }
         }
+    }
+
+    private void DrawEmptyGuide(Graphics graphics)
+    {
+        using var titleFont = new Font("Microsoft YaHei UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+        using var buttonFont = new Font("Microsoft YaHei UI", 8.5F, FontStyle.Regular, GraphicsUnit.Point);
+        using var titleBrush = new SolidBrush(_palette.Text);
+        using var mutedBrush = new SolidBrush(_palette.MutedText);
+        var title = "\u4ece\u8fd9\u91cc\u5f00\u59cb\u6574\u7406 Dock";
+        var titleRect = new Rectangle(18, 12, Width - 36, 22);
+        graphics.DrawString(title, titleFont, titleBrush, titleRect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
+
+        var buttons = new[]
+        {
+            ("\u6dfb\u52a0\u5e94\u7528/\u6587\u4ef6", "app"),
+            ("\u6dfb\u52a0\u6587\u4ef6\u5939", "folder"),
+            ("\u6253\u5f00\u8bbe\u7f6e", "settings")
+        };
+        var buttonWidth = 118;
+        var buttonHeight = 30;
+        var gap = 10;
+        var totalWidth = buttons.Length * buttonWidth + (buttons.Length - 1) * gap;
+        var left = Math.Max(12, (Width - totalWidth) / 2);
+        var top = 42;
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            var rect = new Rectangle(left + i * (buttonWidth + gap), top, buttonWidth, buttonHeight);
+            _guideRects.Add((rect, buttons[i].Item2));
+            using var path = RoundedRect(rect, 14);
+            var fillColor = i == 0 ? _palette.Accent : _palette.PanelAlt;
+            using var fill = new SolidBrush(WithAlpha(fillColor, i == 0 ? 0.92 : 0.72));
+            using var border = new Pen(WithAlpha(i == 0 ? _palette.Accent : _palette.Border, 0.82));
+            using var text = new SolidBrush(i == 0 ? _palette.AccentText : _palette.Text);
+            graphics.FillPath(fill, path);
+            graphics.DrawPath(border, path);
+            graphics.DrawString(buttons[i].Item1, buttonFont, text, rect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter });
+        }
+
+        var hintRect = new Rectangle(18, top + buttonHeight + 5, Width - 36, 18);
+        graphics.DrawString("\u4e5f\u53ef\u4ee5\u628a\u5e94\u7528\u6216\u6587\u4ef6\u5939\u62d6\u5230 Dock", buttonFont, mutedBrush, hintRect, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter });
+    }
+
+    private void DrawBrokenBadge(Graphics graphics, Rectangle iconRect)
+    {
+        var size = Math.Max(15, iconRect.Width / 4);
+        var badge = new Rectangle(iconRect.Right - size + 1, iconRect.Top - 1, size, size);
+        using var fill = new SolidBrush(_palette.IsDark ? Color.FromArgb(248, 146, 69) : Color.FromArgb(224, 80, 62));
+        using var border = new Pen(Color.FromArgb(245, 255, 255, 255), 1.2F);
+        graphics.FillEllipse(fill, badge);
+        graphics.DrawEllipse(border, badge);
+        using var font = new Font("Segoe UI", Math.Max(8F, size * 0.58F), FontStyle.Bold, GraphicsUnit.Point);
+        using var text = new SolidBrush(Color.White);
+        graphics.DrawString("!", font, text, badge, new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center });
     }
 
     private void DrawHoverLabel(Graphics graphics)
@@ -424,6 +489,14 @@ internal sealed class DockForm : Form
     private void RecalculateLayout()
     {
         var count = Math.Max(1, _config.Items.Count);
+        if (ShouldShowEmptyGuide())
+        {
+            Size = new Size(430, 98);
+            Bounds = _layoutService.GetDockBounds(_config.Dock, Size);
+            Region = new Region(new Rectangle(0, 0, Width, Height));
+            return;
+        }
+
         if (_hoverIndex >= _config.Items.Count)
         {
             _hoverIndex = -1;
@@ -488,6 +561,11 @@ internal sealed class DockForm : Form
 
     private Rectangle GetDockBackgroundBounds()
     {
+        if (ShouldShowEmptyGuide())
+        {
+            return new Rectangle(1, 1, Width - 2, Height - 2);
+        }
+
         var padding = GetContentPadding();
         if (IsVertical())
         {
@@ -630,6 +708,12 @@ internal sealed class DockForm : Form
 
     private void OnMouseDown(object? sender, MouseEventArgs e)
     {
+        if (e.Button == MouseButtons.Left && TryActivateGuide(e.Location))
+        {
+            _pressedIndex = -1;
+            return;
+        }
+
         _pressedIndex = HitTest(e.Location);
         if (e.Button == MouseButtons.Right)
         {
@@ -649,6 +733,11 @@ internal sealed class DockForm : Form
 
     private int HitTest(Point point)
     {
+        if (ShouldShowEmptyGuide())
+        {
+            return -1;
+        }
+
         for (var i = 0; i < _config.Items.Count; i++)
         {
             if (GetItemRect(i).Contains(point))
@@ -661,6 +750,11 @@ internal sealed class DockForm : Form
 
     private int HitTestForHover(Point point)
     {
+        if (ShouldShowEmptyGuide())
+        {
+            return -1;
+        }
+
         var direct = HitTest(point);
         if (direct >= 0)
         {
@@ -724,6 +818,53 @@ internal sealed class DockForm : Form
         return (dx * dx) + (dy * dy) < 9;
     }
 
+    private bool ShouldShowEmptyGuide()
+    {
+        return _config.Items.Count == 0 || _config.Items.All(item =>
+            item.IsSeparator || string.Equals(item.Type, DockItemTypes.Settings, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool TryActivateGuide(Point point)
+    {
+        foreach (var guide in _guideRects)
+        {
+            if (!guide.Bounds.Contains(point))
+            {
+                continue;
+            }
+
+            if (guide.Action == "app")
+            {
+                AddAppOrFile();
+            }
+            else if (guide.Action == "folder")
+            {
+                AddFolder();
+            }
+            else if (guide.Action == "settings")
+            {
+                ShowSettings();
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static bool IsBrokenItem(DockItem item)
+    {
+        if (item.IsSeparator
+            || string.Equals(item.Type, DockItemTypes.Settings, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Type, DockItemTypes.Url, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Type, DockItemTypes.Shell, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase)
+            ? !Directory.Exists(item.Target)
+            : !File.Exists(item.Target) && !Directory.Exists(item.Target);
+    }
+
     private void ActivateItem(DockItem item, Rectangle? itemRect = null)
     {
         try
@@ -739,6 +880,12 @@ internal sealed class DockForm : Form
             }
             if (string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
             {
+                if (IsBrokenItem(item))
+                {
+                    PromptRelocateMissingItem(item);
+                    return;
+                }
+
                 if (ShouldOpenFolderInExplorer(item))
                 {
                     OpenFolderInExplorer(item);
@@ -765,7 +912,7 @@ internal sealed class DockForm : Form
             }
             else
             {
-                MessageBox.Show("\u76ee\u6807\u4e0d\u5b58\u5728\uff1a\n" + item.Target, "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                PromptRelocateMissingItem(item);
             }
         }
         catch (Exception ex)
@@ -779,7 +926,7 @@ internal sealed class DockForm : Form
     {
         if (!Directory.Exists(item.Target))
         {
-            MessageBox.Show("\u6587\u4ef6\u5939\u4e0d\u5b58\u5728\uff1a\n" + item.Target, "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            PromptRelocateMissingItem(item);
             return;
         }
 
@@ -803,7 +950,7 @@ internal sealed class DockForm : Form
             }
             else
             {
-                MessageBox.Show("\u6587\u4ef6\u5939\u4e0d\u5b58\u5728\uff1a\n" + item.Target, "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                PromptRelocateMissingItem(item);
             }
         }
         catch (Exception ex)
@@ -811,6 +958,66 @@ internal sealed class DockForm : Form
             _log.Error(ex);
             MessageBox.Show(ex.Message, "TidyDock", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void PromptRelocateMissingItem(DockItem item)
+    {
+        var result = MessageBox.Show(
+            "\u76ee\u6807\u4e0d\u5b58\u5728\uff1a\n" + item.Target + "\n\n\u662f\u5426\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807\uff1f",
+            "TidyDock",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button1);
+        if (result == DialogResult.Yes)
+        {
+            RelocateItemTarget(item);
+        }
+    }
+
+    private void RelocateItemTarget(DockItem item)
+    {
+        if (string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
+        {
+            using var folderDialog = new FolderBrowserDialog { Description = "\u91cd\u65b0\u5b9a\u4f4d\u6587\u4ef6\u5939" };
+            if (folderDialog.ShowDialog(this) == DialogResult.OK)
+            {
+                item.Target = folderDialog.SelectedPath;
+                item.Type = DockItemTypes.Folder;
+                item.OpenBehavior = string.IsNullOrWhiteSpace(item.OpenBehavior) || item.OpenBehavior == DockOpenBehaviors.Auto
+                    ? DockOpenBehaviors.Flyout
+                    : item.OpenBehavior;
+                ApplySettings();
+            }
+            return;
+        }
+
+        using var dialog = new OpenFileDialog
+        {
+            Title = "\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807",
+            Filter = "\u7a0b\u5e8f\u548c\u6587\u4ef6|*.exe;*.lnk;*.url;*.*|\u6240\u6709\u6587\u4ef6|*.*"
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        var path = dialog.FileName;
+        var shortcutTarget = ShortcutService.ResolveShortcutTarget(path);
+        if (Directory.Exists(shortcutTarget))
+        {
+            item.Target = shortcutTarget;
+            item.Type = DockItemTypes.Folder;
+            item.OpenBehavior = DockOpenBehaviors.Flyout;
+        }
+        else
+        {
+            item.Target = _shortcutService.ImportIfShortcut(path);
+            item.Type = string.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase)
+                ? DockItemTypes.App
+                : DockItemTypes.File;
+            item.OpenBehavior = DockOpenBehaviors.Auto;
+        }
+        ApplySettings();
     }
 
     private void ShowItemMenu(int index, Point location)
@@ -825,17 +1032,44 @@ internal sealed class DockForm : Form
         {
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("\u6253\u5f00", null, delegate { ActivateItem(_config.Items[index], GetItemRect(index)); });
+            if (IsBrokenItem(_config.Items[index]))
+            {
+                menu.Items.Add("\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807", null, delegate { RelocateItemTarget(_config.Items[index]); });
+            }
             if (string.Equals(_config.Items[index].Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
             {
                 menu.Items.Add("\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u6253\u5f00", null, delegate { OpenFolderInExplorer(_config.Items[index]); });
             }
             menu.Items.Add("\u79fb\u9664", null, delegate
             {
-                _config.Items.RemoveAt(index);
-                ApplySettings();
+                ConfirmAndRemoveItem(index);
             });
         }
         menu.Show(this, location);
+    }
+
+    private void ConfirmAndRemoveItem(int index)
+    {
+        if (index < 0 || index >= _config.Items.Count)
+        {
+            return;
+        }
+
+        var item = _config.Items[index];
+        var name = string.IsNullOrWhiteSpace(item.Name) ? "\u8be5 Dock \u9879" : item.Name;
+        var result = MessageBox.Show(
+            $"\u4ece Dock \u79fb\u9664\u201c{name}\u201d\uff1f\n\n\u8fd9\u4e0d\u4f1a\u5220\u9664\u539f\u59cb\u6587\u4ef6\u6216\u6587\u4ef6\u5939\u3002",
+            "TidyDock",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2);
+        if (result != DialogResult.Yes)
+        {
+            return;
+        }
+
+        _config.Items.RemoveAt(index);
+        ApplySettings();
     }
 
     private ContextMenuStrip BuildTrayMenu()

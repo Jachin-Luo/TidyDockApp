@@ -1,57 +1,53 @@
-# TidyDock User Guide
+# TidyDock 用户指南
 
-## Add Items
+## 首次使用
 
-1. Open the Dock menu or settings.
-2. Enable edit mode.
-3. Drag apps, folders, files, `.exe`, or `.lnk` files onto the Dock.
-4. Use Add URL for web links.
-5. Disable edit mode when finished.
+- 如果 Dock 还没有常用项目，会显示 `添加应用/文件`、`添加文件夹`、`打开设置` 三个入口。
+- 也可以把应用、文件或文件夹直接拖到 Dock 上。
+- TidyDock 是手动整理的启动器，不会扫描桌面，也不会自动移动用户文件。
 
-When a `.lnk` shortcut is added, TidyDock keeps its own copy. You can delete the original desktop shortcut without breaking the Dock item.
+## 添加项目
 
-## Open Items
+- 右键 Dock 空白区域可添加应用/文件、文件夹、网址、此电脑和分隔符。
+- 在设置页的 `Dock 项` 区域可以批量添加、排序、重命名、更换图标和管理文件夹分组。
+- 添加 `.lnk` 或 `.url` 时，TidyDock 会保存自己的副本；删除桌面原快捷方式不会破坏 Dock 项。
 
-- Click app, file, or URL items to open them.
-- Click folder items to open the folder panel.
+## 打开和管理项目
 
-## Organize Items
+- 左键点击应用、文件、网址或系统位置会直接打开。
+- 左键点击文件夹会按该项目设置打开文件夹面板或资源管理器。
+- 右键单个 Dock 项可打开、在资源管理器中打开文件夹、重新定位失效目标或移除。
+- 移除 Dock 项前会确认，并提示只从 Dock 移除，不会删除原文件。
 
-- Enable edit mode.
-- Drag items to reorder them.
-- Right-click an item to rename, edit target, change icon, or remove it.
+## 失效目标恢复
 
-## Folder Panel
+- 如果文件、应用或文件夹目标不存在，Dock 图标会显示警示标记。
+- 点击失效项目时会提示是否重新定位目标。
+- 也可以右键失效项目，选择 `重新定位目标`。
 
-- Click a folder item to view direct children.
-- Click a subfolder to enter it.
-- Use Back to return.
-- Use Open in Explorer for the current folder.
-- Move pointer away to auto-hide the panel.
+## 文件夹面板
 
-## Settings
+- 文件夹面板只读取当前文件夹的直接子项，不递归扫描。
+- 可以进入子文件夹、返回上一级、在资源管理器中打开当前文件夹。
+- 文件夹 Dock 项支持手动分组，分组只影响 TidyDock 展示，不会移动或重命名真实文件。
 
-Settings include:
+## 设置页
 
-- Dock position.
-- Display.
-- Icon size.
-- Icon gap.
-- Opacity.
-- Corner radius.
-- Magnification.
-- Auto-hide.
-- Always on top.
-- Startup behavior.
-- Tray icon.
-- Language.
-- Theme.
-- Folder panel limits.
+- 设置页使用草稿流程：修改后先进入草稿，不会立刻保存。
+- `预览到 Dock` 会临时应用草稿，便于查看效果。
+- `保存并关闭` 会保存配置并关闭设置页。
+- `取消` 或确认放弃关闭会恢复打开设置前的 Dock 状态。
+- `跟随 Windows 启动` 是系统级设置，会即时生效。
 
-## Local Data
+## 数据与备份
 
-TidyDock stores settings and cache locally under:
+TidyDock WinForms v0.2 数据保存在：
 
 ```text
-%APPDATA%\TidyDock
+%APPDATA%\TidyDock\winforms
 ```
+
+- 默认卸载会保留配置，重装后可恢复。
+- 设置页可导出 zip 备份，包含 `settings.json`、`icons/` 和 `shortcuts/`。
+- 导入备份会先写入设置草稿，仍需点击 `预览到 Dock` 或 `保存并关闭` 才生效。
+- 使用 `Uninstall-CurrentUser.ps1 -RemoveUserData` 或开始菜单 `卸载并清除配置 TidyDock` 才会删除用户配置。
