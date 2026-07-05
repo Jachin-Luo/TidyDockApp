@@ -166,6 +166,45 @@ src\TidyDock.WinForms\dist\release-hardening-50-items.csv
 
 结论：本轮键盘可达性、菜单主题、设置页按钮收纳和压测脚本没有引入空闲 CPU 或私有内存增长。
 
+### WinForms v0.2 第三轮复查后发布硬化长测 - 2026-07-05
+
+背景：
+
+- 第三轮复查修复分组管理列表底部间距。
+- 同时补充释放 `.lnk` 解析和 Shell 图标加载使用的 COM 对象，避免 Shell 资源由 GC 延后回收造成 idle 采样误判。
+
+命令：
+
+```powershell
+.\src\TidyDock.WinForms\scripts\Test-ReleaseHardening.ps1
+```
+
+10 分钟 idle：
+
+| Metric | Value |
+| --- | ---: |
+| Samples | 21 |
+| Private memory start | 16.29 MB |
+| Private memory end | 16.11 MB |
+| Private memory delta | -0.18 MB |
+| Working set delta | 0.28 MB |
+| Handles delta | -5 |
+| CPU delta | 0.01 s |
+
+50 项 Dock：
+
+| Metric | Value |
+| --- | ---: |
+| Samples | 6 |
+| Private memory start | 16.46 MB |
+| Private memory end | 16.36 MB |
+| Private memory delta | -0.1 MB |
+| Working set delta | -0.05 MB |
+| Handles delta | 2 |
+| CPU delta | 0 s |
+
+结论：第三轮复查后的完整 release hardening 通过，没有持续 private memory、handle 或 CPU 增长。
+
 ## Interpretation
 
 Idle CPU is good in this baseline.

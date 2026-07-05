@@ -237,9 +237,10 @@ internal sealed class IconService : IDisposable
 
     public static string ResolveShortcutTarget(string path)
     {
+        object? shellLink = null;
         try
         {
-            object shellLink = new ShellLink();
+            shellLink = new ShellLink();
             var link = (IShellLinkW)shellLink;
             ((IPersistFile)shellLink).Load(path, 0);
             var builder = new StringBuilder(1024);
@@ -256,6 +257,13 @@ internal sealed class IconService : IDisposable
         catch
         {
             return "";
+        }
+        finally
+        {
+            if (shellLink is not null && Marshal.IsComObject(shellLink))
+            {
+                _ = Marshal.FinalReleaseComObject(shellLink);
+            }
         }
 
         return "";
@@ -290,10 +298,11 @@ internal sealed class IconService : IDisposable
 
     private static Bitmap? TryLoadShellIcon(string path, int size)
     {
+        IShellItemImageFactory? factory = null;
         try
         {
             var iid = typeof(IShellItemImageFactory).GUID;
-            SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out var factory);
+            SHCreateItemFromParsingName(path, IntPtr.Zero, ref iid, out factory);
             factory.GetImage(new NativeSize(size, size), ShellItemImageFactoryFlags.IconOnly | ShellItemImageFactoryFlags.BiggerSizeOk | ShellItemImageFactoryFlags.ScaleUp, out var bitmapHandle);
             if (bitmapHandle == IntPtr.Zero)
             {
@@ -312,6 +321,13 @@ internal sealed class IconService : IDisposable
         catch
         {
             return null;
+        }
+        finally
+        {
+            if (factory is not null && Marshal.IsComObject(factory))
+            {
+                _ = Marshal.FinalReleaseComObject(factory);
+            }
         }
     }
 

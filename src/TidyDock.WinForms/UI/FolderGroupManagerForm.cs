@@ -162,7 +162,7 @@ internal sealed class FolderGroupManagerForm : Form
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));
         panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
 
         panel.Controls.Add(MakeTitle("\u5f53\u524d\u6587\u4ef6\u5939\u9879\u76ee"), 0, 0);
         panel.Controls.Add(BuildFilterRow(), 0, 1);
@@ -181,6 +181,7 @@ internal sealed class FolderGroupManagerForm : Form
         _entryList.BackColor = _palette.PanelAlt;
         _entryList.ForeColor = _palette.Text;
         _entryList.BorderStyle = BorderStyle.None;
+        _entryList.Margin = new Padding(0, 0, 0, 10);
         _entryList.Columns.Add("\u540d\u79f0", 245);
         _entryList.Columns.Add("\u7c7b\u578b", 72);
         _entryList.Columns.Add("\u6240\u5c5e\u5206\u7ec4", 150);
@@ -192,7 +193,9 @@ internal sealed class FolderGroupManagerForm : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            BackColor = _palette.Panel
+            BackColor = _palette.Panel,
+            Padding = new Padding(0, 6, 0, 0),
+            Margin = new Padding(0)
         };
         buttons.Controls.Add(MakeButton("\u52a0\u5165\u5f53\u524d\u5206\u7ec4", AssignSelectedToGroup, primary: true));
         buttons.Controls.Add(MakeButton("\u79fb\u51fa\u5206\u7ec4", RemoveSelectedFromGroups));

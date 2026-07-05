@@ -117,6 +117,7 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 10 分钟 idle 和 50 项 Dock 采样结果显示 private memory 和 handle count 没有持续增长，后续每个 release candidate 都应至少跑一次。
 - GitHub Release 自动化只复用本地已验证脚本，避免 CI 和本地发布走两套逻辑；`v*` tag 触发后构建 WinForms v0.2 installer、portable zip 和 `SHA256SUMS.txt`。
 - unsigned release 不需要额外 secret，使用 GitHub 内置 `GITHUB_TOKEN` 创建或更新 Release；代码签名以后单独作为发布增强项处理。
+- Shell COM 对象不能只依赖 GC 回收。`.lnk` 解析的 `ShellLink` 和 `IShellItemImageFactory` 应在使用后 `FinalReleaseComObject`，否则真实配置 idle 采样中可能出现几分钟后 private memory 和 handle 突增，容易被误判为持续泄漏。
 
 ## 键盘可达性记录
 
