@@ -75,13 +75,7 @@ internal sealed class FolderFlyoutForm : Form
         MouseEnter += delegate { _closeTimer.Stop(); };
         MouseDown += OnMouseDown;
         Deactivate += delegate { StartCloseTimer(); };
-        KeyDown += delegate(object? _, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Escape)
-            {
-                CloseWithAnimation();
-            }
-        };
+        KeyDown += OnKeyDown;
         _closeTimer.Tick += delegate
         {
             _closeTimer.Stop();
@@ -611,13 +605,18 @@ internal sealed class FolderFlyoutForm : Form
             return;
         }
 
-        if (hit.Entry.IsDirectory)
+        ActivateEntry(hit.Entry);
+    }
+
+    private void ActivateEntry(FolderEntry entry)
+    {
+        if (entry.IsDirectory)
         {
-            LoadFolder(hit.Entry.Path, addHistory: true);
+            LoadFolder(entry.Path, addHistory: true);
             return;
         }
 
-        OpenPath(hit.Entry.Path);
+        OpenPath(entry.Path);
     }
 
     private void OpenPath(string path)
@@ -833,11 +832,27 @@ internal sealed class FolderFlyoutForm : Form
         {
             var root = Path.GetPathRoot(path) ?? "";
             var trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var name = Path.GetFileName(trimmed);
-            if (!string.IsNullOrWhiteSpace(root) && !string.IsNullOrWhiteSpace(name))
+            var relative = !string.IsNullOrWhiteSpace(root) && trimmed.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+                ? trimmed[root.Length..]
+                : trimmed;
+            var parts = relative
+                .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries)
+                .ToList();
+            if (parts.Count >= 2)
             {
-                var label = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + "\\...\\" + name;
-                return label.Length <= maxLength ? label : "...\\" + name;
+                var tail = parts[^2] + "\\" + parts[^1];
+                var label = string.IsNullOrWhiteSpace(root)
+                    ? "...\\" + tail
+                    : root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + "\\...\\" + tail;
+                return label.Length <= maxLength ? label : "...\\" + tail;
+            }
+
+            if (parts.Count == 1)
+            {
+                var label = string.IsNullOrWhiteSpace(root)
+                    ? parts[0]
+                    : root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + "\\" + parts[0];
+                return label.Length <= maxLength ? label : "...\\" + parts[0];
             }
         }
         catch
@@ -845,6 +860,60 @@ internal sealed class FolderFlyoutForm : Form
         }
 
         return "..." + path[^Math.Min(path.Length, Math.Max(8, maxLength - 3))..];
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Escape)
+        {
+            CloseWithAnimation();
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.KeyCode == Keys.Back && _history.Count > 0)
+        {
+            LoadFolder(_history.Pop(), addHistory: false);
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.KeyCode is Keys.Down or Keys.Right)
+        {
+            MoveKeyboardHover(1);
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.KeyCode is Keys.Up or Keys.Left)
+        {
+            MoveKeyboardHover(-1);
+            e.SuppressKeyPress = true;
+            return;
+        }
+
+        if (e.KeyCode == Keys.Enter)
+        {
+            var hit = _entryHits.FirstOrDefault(item => item.Index == _hoverIndex) ?? _entryHits.FirstOrDefault();
+            if (hit is not null)
+            {
+                ActivateEntry(hit.Entry);
+                e.SuppressKeyPress = true;
+            }
+        }
+    }
+
+    private void MoveKeyboardHover(int delta)
+    {
+        if (_entryHits.Count == 0)
+        {
+            return;
+        }
+
+        var current = _entryHits.FindIndex(item => item.Index == _hoverIndex);
+        var next = current < 0 ? 0 : Math.Clamp(current + delta, 0, _entryHits.Count - 1);
+        _hoverIndex = _entryHits[next].Index;
+        RenderLayeredFlyout();
     }
 
     private bool ShouldShowGroupedSections()

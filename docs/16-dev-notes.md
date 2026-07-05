@@ -113,6 +113,14 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 图标缓存必须有上限。文件夹 Flyout 会按需加载大量文件图标，如果缓存无限增长，常驻程序会随着浏览历史持续占用资源。
 - 文件夹读取达到 `MaxItems + 1` 后应停止枚举。截断提示比完整扫描大目录更符合低资源边界。
 - 多显示器支持已有 `DockSettings.Display` 和布局服务，设置页需要暴露入口，并继续以主屏幕为默认值。
+- 发布硬化压测脚本必须备份并恢复 `%APPDATA%\TidyDock\winforms\settings.json`。50 项 Dock 采样可以临时写入测试配置，但 finally 中必须恢复用户真实配置。
+- 10 分钟 idle 和 50 项 Dock 采样结果显示 private memory 和 handle count 没有持续增长，后续每个 release candidate 都应至少跑一次。
+
+## 键盘可达性记录
+
+- Dock 不作为任务栏替代品，但仍应提供基础键盘入口：`Menu/Shift+F10` 打开菜单，`Enter/Space` 打开悬停项，`Ctrl+,` 打开设置。
+- 设置页使用自绘按钮，不能依赖 WinForms 默认 `AcceptButton`；需要在 `ProcessCmdKey` 中显式处理 `Esc`、`Ctrl+P`、`Ctrl+S`。
+- 文件夹 Flyout 是自绘面板，方向键只在当前可见项中移动，避免为了键盘导航引入复杂虚拟焦点和持续重绘。
 
 ## 产品体验 P0 优化记录
 

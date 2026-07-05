@@ -124,6 +124,48 @@ Self-contained 发布主要增加包体积，不明显增加空闲 private memor
 | `TidyDock-winforms-portable.zip` | 59.10 MB |
 | `TidyDockWinFormsSetup.exe` | 146.62 MB |
 
+### WinForms v0.2 发布硬化长测 - 2026-07-05
+
+命令：
+
+```powershell
+.\src\TidyDock.WinForms\scripts\Test-ReleaseHardening.ps1
+```
+
+输出摘要：
+
+```text
+src\TidyDock.WinForms\dist\release-hardening-summary.md
+src\TidyDock.WinForms\dist\release-hardening-10min-idle.csv
+src\TidyDock.WinForms\dist\release-hardening-50-items.csv
+```
+
+10 分钟 idle：
+
+| Metric | Value |
+| --- | ---: |
+| Samples | 21 |
+| Private memory start | 16.05 MB |
+| Private memory end | 15.89 MB |
+| Private memory delta | -0.16 MB |
+| Working set delta | 0.26 MB |
+| Handles delta | -5 |
+| CPU delta | 0 s |
+
+50 项 Dock：
+
+| Metric | Value |
+| --- | ---: |
+| Samples | 6 |
+| Private memory start | 16.37 MB |
+| Private memory end | 16.28 MB |
+| Private memory delta | -0.09 MB |
+| Working set delta | -0.05 MB |
+| Handles delta | 2 |
+| CPU delta | 0 s |
+
+结论：本轮键盘可达性、菜单主题、设置页按钮收纳和压测脚本没有引入空闲 CPU 或私有内存增长。
+
 ## Interpretation
 
 Idle CPU is good in this baseline.

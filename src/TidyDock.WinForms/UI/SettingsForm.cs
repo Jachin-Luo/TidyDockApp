@@ -70,6 +70,9 @@ internal sealed class SettingsForm : Form
         Height = 650;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(FormMinWidth, 560);
+        KeyPreview = true;
+        AccessibleName = "TidyDock 设置";
+        AccessibleRole = AccessibleRole.Dialog;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         ApplyTheme();
         Build();
@@ -126,6 +129,35 @@ internal sealed class SettingsForm : Form
             _palette.IsDark ? Color.FromArgb(31, 35, 41) : Color.FromArgb(248, 250, 252),
             90f);
         e.Graphics.FillRectangle(background, ClientRectangle);
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape)
+        {
+            CancelSettings(this, EventArgs.Empty);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.P))
+        {
+            if (_previewButton?.Enabled == true)
+            {
+                PreviewSettings(this, EventArgs.Empty);
+            }
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.S))
+        {
+            if (_confirmButton?.Enabled == true)
+            {
+                ConfirmSettings(this, EventArgs.Empty);
+            }
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private void Build()
@@ -320,6 +352,8 @@ internal sealed class SettingsForm : Form
                 BorderStyle = BorderStyle.None,
                 SmallImageList = new ImageList { ImageSize = new Size(1, ItemTableRowHeight), ColorDepth = ColorDepth.Depth32Bit }
             };
+            _items.AccessibleName = "Dock 项列表";
+            _items.AccessibleRole = AccessibleRole.Table;
             _items.Columns.Add("\u7c7b\u578b", 78);
             _items.Columns.Add("\u540d\u79f0", 170);
             _items.Columns.Add("\u76ee\u6807", 362);
@@ -335,24 +369,15 @@ internal sealed class SettingsForm : Form
             addRow.Controls.Add(MakeButton("\u6dfb\u52a0\u5e94\u7528/\u6587\u4ef6", AddAppOrFile, "primary"));
             addRow.Controls.Add(MakeButton("\u6dfb\u52a0\u6587\u4ef6\u5939", AddFolder));
             addRow.Controls.Add(MakeButton("\u6dfb\u52a0\u7f51\u5740", AddUrl));
-            addRow.Controls.Add(MakeButton("\u6dfb\u52a0\u6b64\u7535\u8111", AddThisPc));
-            addRow.Controls.Add(MakeButton("\u6dfb\u52a0\u5206\u9694\u7b26", AddSeparator));
+            addRow.Controls.Add(MakeButton("\u66f4\u591a\u6dfb\u52a0", ShowMoreAddMenu));
             panel.Controls.Add(addRow);
 
             var editRow = MakeRow();
-            editRow.Controls.Add(MakeButton("\u4e0a\u79fb", delegate { MoveSelected(-1); }));
-            editRow.Controls.Add(MakeButton("\u4e0b\u79fb", delegate { MoveSelected(1); }));
             editRow.Controls.Add(MakeButton("\u91cd\u547d\u540d", RenameSelected));
-            editRow.Controls.Add(MakeButton("\u66f4\u6362\u56fe\u6807", ChangeIconSelected));
-            editRow.Controls.Add(MakeButton("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", ResetIconSelected));
             editRow.Controls.Add(MakeButton("\u7ba1\u7406\u5206\u7ec4", ManageFolderGroupsSelected));
             editRow.Controls.Add(MakeButton("\u79fb\u9664", RemoveSelected, "danger"));
+            editRow.Controls.Add(MakeButton("\u66f4\u591a\u64cd\u4f5c", ShowMoreItemMenu));
             panel.Controls.Add(editRow);
-
-            var styleRow = MakeRow();
-            styleRow.Controls.Add(MakeButton("\u4e00\u952e\u5957\u5706\u89d2\u56fe\u6807", delegate { ApplyIconStyleToAll(DockIconStyles.RoundedRect); }, "primary"));
-            styleRow.Controls.Add(MakeButton("\u6062\u590d\u539f\u59cb\u6837\u5f0f", delegate { ApplyIconStyleToAll(DockIconStyles.Default); }));
-            panel.Controls.Add(styleRow);
             panel.Controls.Add(MakeCheck("\u4e00\u952e\u64cd\u4f5c\u5305\u542b\u81ea\u5b9a\u4e49\u56fe\u6807", _config.Dock.WrapCustomIcons, value =>
             {
                 _config.Dock.WrapCustomIcons = value;
@@ -406,7 +431,7 @@ internal sealed class SettingsForm : Form
     private Control MakeCombo(string label, ComboOption[] values, string current, Action<string> change)
     {
         var row = MakeLabeledRow(label);
-        var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320, Height = 32, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 26 };
+        var combo = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 320, Height = 32, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 26, AccessibleName = label, AccessibleRole = AccessibleRole.ComboBox };
         combo.Items.AddRange(values);
         combo.SelectedItem = values.FirstOrDefault(value => string.Equals(value.Value, current, StringComparison.OrdinalIgnoreCase)) ?? values[0];
         combo.BackColor = _palette.PanelAlt;
@@ -425,6 +450,8 @@ internal sealed class SettingsForm : Form
     {
         var row = MakeLabeledRow(label);
         var slider = new GlassSlider { Width = 420, Height = 32, Palette = _palette, Minimum = min, Maximum = max, Value = Math.Clamp(value, min, max), BackColor = _palette.Panel };
+        slider.AccessibleName = label;
+        slider.AccessibleRole = AccessibleRole.Slider;
         var valueLabel = new Label { Width = 78, Height = 32, ForeColor = _palette.MutedText, BackColor = _palette.Panel, TextAlign = ContentAlignment.MiddleRight, Text = FormatSliderValue(slider.Value, suffix) };
         slider.ValueChanged += delegate
         {
@@ -441,6 +468,8 @@ internal sealed class SettingsForm : Form
     {
         var row = MakeLabeledRow(label);
         var slider = new GlassSlider { Width = 420, Height = 32, Palette = _palette, Minimum = 0, Maximum = 100, Value = Math.Clamp((int)(value * 100), 0, 100), BackColor = _palette.Panel };
+        slider.AccessibleName = label;
+        slider.AccessibleRole = AccessibleRole.Slider;
         var valueLabel = new Label { Width = 54, Height = 32, ForeColor = _palette.MutedText, BackColor = _palette.Panel, TextAlign = ContentAlignment.MiddleRight, Text = slider.Value + "%" };
         slider.ValueChanged += delegate
         {
@@ -456,6 +485,8 @@ internal sealed class SettingsForm : Form
     private ToggleSwitch MakeCheck(string text, bool value, Action<bool> change, bool trackDraft = true)
     {
         var check = new ToggleSwitch { Text = text, Checked = value, Palette = _palette, BackColor = _palette.Panel };
+        check.AccessibleName = text;
+        check.AccessibleRole = AccessibleRole.CheckButton;
         check.CheckedChanged += delegate
         {
             change(check.Checked);
@@ -506,6 +537,8 @@ internal sealed class SettingsForm : Form
             Danger = style == "danger",
             BackColor = _palette.Panel
         };
+        button.AccessibleName = text;
+        button.AccessibleRole = AccessibleRole.PushButton;
         button.Click += click;
         return button;
     }
@@ -522,8 +555,33 @@ internal sealed class SettingsForm : Form
             BackColor = _palette.Window,
             Margin = new Padding(8, 0, 0, 0)
         };
+        button.AccessibleName = text;
+        button.AccessibleRole = AccessibleRole.PushButton;
         button.Click += click;
         return button;
+    }
+
+    private ContextMenuStrip CreateContextMenu()
+    {
+        return new ContextMenuStrip
+        {
+            Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point),
+            ShowImageMargin = false,
+            BackColor = _palette.Panel,
+            ForeColor = _palette.Text
+        };
+    }
+
+    private void ShowContextMenu(object? sender, ContextMenuStrip menu)
+    {
+        menu.Closed += delegate { menu.Dispose(); };
+        if (sender is Control control)
+        {
+            menu.Show(control, new Point(0, control.Height + 2));
+            return;
+        }
+
+        menu.Show(this, PointToClient(Cursor.Position));
     }
 
     private void PreviewSettings(object? sender, EventArgs e)
@@ -829,6 +887,28 @@ internal sealed class SettingsForm : Form
             Target = ThisPcTarget
         });
         RefreshItems();
+    }
+
+    private void ShowMoreAddMenu(object? sender, EventArgs e)
+    {
+        var menu = CreateContextMenu();
+        menu.Items.Add("\u6dfb\u52a0\u6b64\u7535\u8111", null, AddThisPc);
+        menu.Items.Add("\u6dfb\u52a0\u5206\u9694\u7b26", null, AddSeparator);
+        ShowContextMenu(sender, menu);
+    }
+
+    private void ShowMoreItemMenu(object? sender, EventArgs e)
+    {
+        var menu = CreateContextMenu();
+        menu.Items.Add("\u4e0a\u79fb", null, delegate { MoveSelected(-1); });
+        menu.Items.Add("\u4e0b\u79fb", null, delegate { MoveSelected(1); });
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("\u66f4\u6362\u56fe\u6807", null, ChangeIconSelected);
+        menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", null, ResetIconSelected);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("\u4e00\u952e\u5957\u5706\u89d2\u56fe\u6807", null, delegate { ApplyIconStyleToAll(DockIconStyles.RoundedRect); });
+        menu.Items.Add("\u6062\u590d\u539f\u59cb\u6837\u5f0f", null, delegate { ApplyIconStyleToAll(DockIconStyles.Default); });
+        ShowContextMenu(sender, menu);
     }
 
     private void AddSeparator(object? sender, EventArgs e)

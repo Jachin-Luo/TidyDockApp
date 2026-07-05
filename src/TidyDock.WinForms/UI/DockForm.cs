@@ -70,8 +70,11 @@ internal sealed class DockForm : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         DoubleBuffered = true;
+        KeyPreview = true;
         AllowDrop = true;
         BackColor = TransparentBackColor;
+        AccessibleName = "TidyDock";
+        AccessibleRole = AccessibleRole.ToolBar;
 
         _tray = new NotifyIcon
         {
@@ -126,6 +129,39 @@ internal sealed class DockForm : Form
             cp.ExStyle &= ~NativeMethods.WsExAppWindow;
             return cp;
         }
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Apps || keyData == (Keys.Shift | Keys.F10))
+        {
+            var index = _hoverIndex >= 0 && _hoverIndex < _config.Items.Count ? _hoverIndex : (_config.Items.Count > 0 ? 0 : -1);
+            var point = index >= 0
+                ? new Point(GetItemRect(index).Left + GetItemRect(index).Width / 2, GetItemRect(index).Bottom + 4)
+                : new Point(ClientSize.Width / 2, ClientSize.Height / 2);
+            ShowItemMenu(index, point);
+            return true;
+        }
+
+        if ((keyData == Keys.Enter || keyData == Keys.Space) && _hoverIndex >= 0 && _hoverIndex < _config.Items.Count)
+        {
+            ActivateItem(_config.Items[_hoverIndex], GetItemRect(_hoverIndex));
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.Oemcomma))
+        {
+            ShowSettings();
+            return true;
+        }
+
+        if (keyData == Keys.Escape)
+        {
+            SetHover(-1, null);
+            return true;
+        }
+
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     protected override void OnShown(EventArgs e)
@@ -1038,40 +1074,40 @@ internal sealed class DockForm : Form
         {
             if (!item.IsSeparator)
             {
-                menu.Items.Add("\u6253\u5f00", null, delegate { ActivateItem(item, GetItemRect(index)); });
+                menu.Items.Add("\u6253\u5f00(&O)", null, delegate { ActivateItem(item, GetItemRect(index)); });
             }
             if (IsBrokenItem(item))
             {
-                menu.Items.Add("\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807", null, delegate { RelocateItemTarget(item); });
+                menu.Items.Add("\u91cd\u65b0\u5b9a\u4f4d\u76ee\u6807(&L)", null, delegate { RelocateItemTarget(item); });
             }
             if (string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase))
             {
-                menu.Items.Add("\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u6253\u5f00", null, delegate { OpenFolderInExplorer(item); });
-                var openBehavior = new ToolStripMenuItem("\u6253\u5f00\u65b9\u5f0f");
+                menu.Items.Add("\u5728\u8d44\u6e90\u7ba1\u7406\u5668\u4e2d\u6253\u5f00(&E)", null, delegate { OpenFolderInExplorer(item); });
+                var openBehavior = new ToolStripMenuItem("\u6253\u5f00\u65b9\u5f0f(&B)");
                 var explorer = string.Equals(item.OpenBehavior, DockOpenBehaviors.Explorer, StringComparison.OrdinalIgnoreCase);
                 openBehavior.DropDownItems.Add(new ToolStripMenuItem("\u60ac\u6d6e\u9762\u677f", null, delegate { SetFolderOpenBehavior(item, DockOpenBehaviors.Flyout); }) { Checked = !explorer });
                 openBehavior.DropDownItems.Add(new ToolStripMenuItem("\u8d44\u6e90\u7ba1\u7406\u5668", null, delegate { SetFolderOpenBehavior(item, DockOpenBehaviors.Explorer); }) { Checked = explorer });
                 menu.Items.Add(openBehavior);
-                menu.Items.Add("\u7ba1\u7406\u5206\u7ec4", null, delegate { ManageFolderGroups(item); });
+                menu.Items.Add("\u7ba1\u7406\u5206\u7ec4(&G)", null, delegate { ManageFolderGroups(item); });
             }
-            menu.Items.Add("\u91cd\u547d\u540d", null, delegate { RenameDockItem(item); });
+            menu.Items.Add("\u91cd\u547d\u540d(&R)", null, delegate { RenameDockItem(item); });
             if (!item.IsSeparator)
             {
-                menu.Items.Add("\u66f4\u6362\u56fe\u6807", null, delegate { ChangeItemIcon(item); });
-                menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", null, delegate { ResetItemIcon(item); });
+                menu.Items.Add("\u66f4\u6362\u56fe\u6807(&I)", null, delegate { ChangeItemIcon(item); });
+                menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807(&D)", null, delegate { ResetItemIcon(item); });
             }
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("\u79fb\u9664", null, delegate { ConfirmAndRemoveItem(index); });
+            menu.Items.Add("\u79fb\u9664(&X)", null, delegate { ConfirmAndRemoveItem(index); });
             menu.Items.Add(new ToolStripSeparator());
         }
 
-        menu.Items.Add("\u6dfb\u52a0\u5e94\u7528/\u6587\u4ef6", null, delegate { AddAppOrFile(); });
-        menu.Items.Add("\u6dfb\u52a0\u6587\u4ef6\u5939", null, delegate { AddFolder(); });
-        menu.Items.Add("\u6dfb\u52a0\u7f51\u5740", null, delegate { AddUrl(); });
-        menu.Items.Add("\u6dfb\u52a0\u6b64\u7535\u8111", null, delegate { AddThisPc(); });
-        menu.Items.Add("\u6dfb\u52a0\u5206\u9694\u7b26", null, delegate { AddSeparator(); });
+        menu.Items.Add("\u6dfb\u52a0\u5e94\u7528/\u6587\u4ef6(&A)", null, delegate { AddAppOrFile(); });
+        menu.Items.Add("\u6dfb\u52a0\u6587\u4ef6\u5939(&F)", null, delegate { AddFolder(); });
+        menu.Items.Add("\u6dfb\u52a0\u7f51\u5740(&U)", null, delegate { AddUrl(); });
+        menu.Items.Add("\u6dfb\u52a0\u6b64\u7535\u8111(&P)", null, delegate { AddThisPc(); });
+        menu.Items.Add("\u6dfb\u52a0\u5206\u9694\u7b26(&S)", null, delegate { AddSeparator(); });
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("\u8bbe\u7f6e", null, delegate { ShowSettings(); });
+        menu.Items.Add("\u8bbe\u7f6e(&,)", null, delegate { ShowSettings(); });
         menu.Show(this, location);
     }
 

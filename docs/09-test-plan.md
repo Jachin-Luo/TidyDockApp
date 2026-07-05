@@ -6,6 +6,7 @@
 dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnaserror
 .\src\TidyDock.WinForms\scripts\Build-Installer.ps1
 .\src\TidyDock.WinForms\scripts\Test-Portable.ps1
+.\src\TidyDock.WinForms\scripts\Test-ReleaseHardening.ps1
 ```
 
 验收：
@@ -38,6 +39,7 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 点击 `保存并关闭` 后重启仍保留。
 - 显示器选择、位置、透明度、增强底座对比度、自动隐藏、置顶、托盘图标均按草稿流程生效。
 - `跟随 Windows 启动` 即时生效。
+- 快捷键：`Esc` 取消设置，`Ctrl+P` 预览到 Dock，`Ctrl+S` 保存并关闭。
 
 ## Folder Flyout Tests
 
@@ -48,6 +50,7 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 快速滚动不越界。
 - 快速切换文件夹不显示过期读取结果。
 - 打开/关闭动画结束后不保留空闲 Timer。
+- 键盘：`Esc` 关闭，`Backspace` 返回上一级，方向键移动悬停项，`Enter` 打开当前项。
 
 ## Folder Group Tests
 
@@ -83,6 +86,7 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 - 打开并关闭 Folder Flyout 后再次记录。
 - 包含 50 个 Dock 项的配置下记录。
 - 10 分钟 idle 记录资源是否持续增长。
+- `Test-ReleaseHardening.ps1` 会自动执行 10 分钟 idle 和 50 项 Dock 采样，并在结束后恢复用户配置。
 - 重点观察图标缓存 LRU 是否避免长期浏览后内存持续上升。
 
 ## Install Tests

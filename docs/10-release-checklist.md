@@ -27,6 +27,7 @@ dotnet build .\src\TidyDock.WinForms\TidyDock.WinForms.csproj -c Release -warnas
 
 ```powershell
 .\src\TidyDock.WinForms\scripts\Test-Portable.ps1
+.\src\TidyDock.WinForms\scripts\Test-ReleaseHardening.ps1
 ```
 
 手动安装启动：
@@ -46,6 +47,7 @@ Get-Process TidyDock,TidyDock.WinForms -ErrorAction SilentlyContinue | Stop-Proc
 - 设置页草稿、预览、保存、取消正常。
 - 数据导出、导入、恢复最近备份正常。
 - 复制诊断信息正常且不包含 Dock 项真实目标路径。
+- 键盘快捷键正常：Dock `Menu/Shift+F10`、设置页 `Esc/Ctrl+P/Ctrl+S`、Flyout `Esc/Backspace/方向键/Enter`。
 - 托盘显示/隐藏、设置、退出正常。
 - 开机启动设置正常。
 
@@ -59,6 +61,7 @@ Get-Process TidyDock,TidyDock.WinForms -ErrorAction SilentlyContinue | Stop-Proc
 - Handle count。
 - 打开设置页后内存。
 - 打开并关闭文件夹 Flyout 后内存。
+- 10 分钟 idle 和 50 项 Dock 压测没有持续增长。
 
 参考命令：
 
