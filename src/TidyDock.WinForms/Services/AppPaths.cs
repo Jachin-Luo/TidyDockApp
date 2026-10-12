@@ -2,15 +2,16 @@ namespace TidyDock.WinForms.Services;
 
 internal sealed class AppPaths
 {
-    public string Root { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TidyDock", "winforms");
+    public string Root { get; }
     public string Cache { get; }
     public string Shortcuts { get; }
     public string Icons { get; }
     public string Logs { get; }
     public string Backups { get; }
 
-    public AppPaths()
+    public AppPaths(string? root = null)
     {
+        Root = root ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TidyDock", "winforms");
         Cache = Path.Combine(Root, "cache");
         Shortcuts = Path.Combine(Root, "shortcuts");
         Icons = Path.Combine(Root, "icons");

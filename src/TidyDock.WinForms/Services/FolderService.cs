@@ -20,7 +20,7 @@ internal sealed class FolderService
             foreach (var entryPath in Directory.EnumerateFileSystemEntries(path))
             {
                 var entry = CreateEntry(path, entryPath);
-                if (entry is null || (!settings.ShowHiddenFiles && IsHidden(entry.Path)))
+                if (entry is null || (!settings.ShowHiddenFiles && entry.IsHidden))
                 {
                     continue;
                 }
@@ -69,14 +69,18 @@ internal sealed class FolderService
     {
         try
         {
-            var isDirectory = Directory.Exists(path);
-            var isShortcut = File.Exists(path) && string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase);
+            var attributes = File.GetAttributes(path);
+            var isDirectory = (attributes & FileAttributes.Directory) == FileAttributes.Directory;
+            var isShortcut = !isDirectory && string.Equals(Path.GetExtension(path), ".lnk", StringComparison.OrdinalIgnoreCase);
             return new FolderEntry
             {
                 Path = path,
                 EntryKey = CreateEntryKey(rootPath, path, isDirectory),
                 IsDirectory = isDirectory,
                 IsShortcut = isShortcut,
+                IsHidden = (attributes & FileAttributes.Hidden) == FileAttributes.Hidden,
+                LastWriteTimeUtcTicks = File.GetLastWriteTimeUtc(path).Ticks,
+                Length = isDirectory ? 0 : new FileInfo(path).Length,
                 Name = isShortcut ? Path.GetFileNameWithoutExtension(path) : Path.GetFileName(path)
             };
         }
@@ -86,15 +90,4 @@ internal sealed class FolderService
         }
     }
 
-    private static bool IsHidden(string path)
-    {
-        try
-        {
-            return (File.GetAttributes(path) & FileAttributes.Hidden) == FileAttributes.Hidden;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

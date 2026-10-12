@@ -64,12 +64,72 @@ internal sealed class GlassButton : Control
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         Size = new Size(96, 34);
         Margin = new Padding(0, 0, 8, 0);
+        TabStop = true;
+        AccessibleRole = AccessibleRole.PushButton;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
     }
 
     public ThemePalette Palette { get; set; } = Theme.Get("system");
     public bool Primary { get; set; }
     public bool Danger { get; set; }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ButtonAccessibleObject(this);
+
+    private sealed class ButtonAccessibleObject(GlassButton owner) : ControlAccessibleObject(owner)
+    {
+        public override string DefaultAction => "Press";
+        public override void DoDefaultAction()
+        {
+            if (owner.Enabled)
+            {
+                owner.OnClick(EventArgs.Empty);
+            }
+        }
+    }
+
+    protected override bool IsInputKey(Keys keyData)
+    {
+        return keyData is Keys.Space or Keys.Enter || base.IsInputKey(keyData);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (Enabled && e.KeyCode is Keys.Space or Keys.Enter && e.Modifiers == Keys.None)
+        {
+            _pressed = true;
+            Invalidate();
+            e.Handled = e.SuppressKeyPress = true;
+        }
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (_pressed && e.KeyCode is Keys.Space or Keys.Enter && e.Modifiers == Keys.None)
+        {
+            _pressed = false;
+            Invalidate();
+            if (Enabled && Focused)
+            {
+                OnClick(EventArgs.Empty);
+            }
+            e.Handled = e.SuppressKeyPress = true;
+        }
+        base.OnKeyUp(e);
+    }
+
+    protected override void OnGotFocus(EventArgs e)
+    {
+        Invalidate();
+        base.OnGotFocus(e);
+    }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        _pressed = false;
+        Invalidate();
+        base.OnLostFocus(e);
+    }
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -90,6 +150,7 @@ internal sealed class GlassButton : Control
     {
         if (e.Button == MouseButtons.Left)
         {
+            Focus();
             _pressed = true;
             Invalidate();
         }
@@ -116,7 +177,7 @@ internal sealed class GlassButton : Control
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(PaintSurface.ResolveBackColor(this, Palette.Panel));
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-        using var path = CardPanel.RoundedRect(bounds, 10);
+        using var path = CardPanel.RoundedRect(bounds, 6);
 
         var baseColor = Primary ? Palette.Accent : Palette.PanelAlt;
         if (Danger && !Primary)
@@ -138,6 +199,10 @@ internal sealed class GlassButton : Control
         using var textBrush = new SolidBrush(textColor);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
         e.Graphics.DrawString(Text, Font, textBrush, bounds, format);
+        if (Focused && ShowFocusCues && Enabled)
+        {
+            ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -4, -4), textColor, fill);
+        }
     }
 
     protected override void OnPaintBackground(PaintEventArgs pevent)
@@ -156,6 +221,8 @@ internal sealed class ToggleSwitch : Control
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         Size = new Size(260, 32);
         Margin = new Padding(0, 1, 0, 7);
+        TabStop = true;
+        AccessibleRole = AccessibleRole.CheckButton;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
     }
 
@@ -173,14 +240,78 @@ internal sealed class ToggleSwitch : Control
             }
             _checked = value;
             Invalidate();
+            AccessibilityNotifyClients(AccessibleEvents.StateChange, -1);
             CheckedChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
     protected override void OnClick(EventArgs e)
     {
+        if (!Enabled)
+        {
+            return;
+        }
+        Focus();
         Checked = !Checked;
         base.OnClick(e);
+    }
+
+    protected override bool IsInputKey(Keys keyData)
+    {
+        return keyData == Keys.Space || base.IsInputKey(keyData);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (Enabled && e.KeyData == Keys.Space)
+        {
+            e.Handled = e.SuppressKeyPress = true;
+        }
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (Enabled && Focused && e.KeyData == Keys.Space)
+        {
+            OnClick(EventArgs.Empty);
+            e.Handled = e.SuppressKeyPress = true;
+        }
+        base.OnKeyUp(e);
+    }
+
+    protected override void OnGotFocus(EventArgs e)
+    {
+        Invalidate();
+        base.OnGotFocus(e);
+    }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        Invalidate();
+        base.OnLostFocus(e);
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        _hovered = false;
+        Invalidate();
+        base.OnEnabledChanged(e);
+    }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new ToggleAccessibleObject(this);
+
+    private sealed class ToggleAccessibleObject(ToggleSwitch owner) : ControlAccessibleObject(owner)
+    {
+        public override AccessibleStates State => base.State | (owner.Checked ? AccessibleStates.Checked : AccessibleStates.None);
+        public override string DefaultAction => "Toggle";
+        public override void DoDefaultAction()
+        {
+            if (owner.Enabled)
+            {
+                owner.OnClick(EventArgs.Empty);
+            }
+        }
     }
 
     protected override void OnMouseEnter(EventArgs e)
@@ -201,22 +332,26 @@ internal sealed class ToggleSwitch : Control
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(PaintSurface.ResolveBackColor(this, Palette.Panel));
-        var switchBounds = new Rectangle(0, 5, 44, 22);
+        var switchBounds = new Rectangle(3, (Height - 22) / 2, 44, 22);
         using var trackPath = CardPanel.RoundedRect(switchBounds, 11);
-        var trackColor = Checked ? Palette.Accent : (_hovered ? ControlPaint.Light(Palette.PanelAlt, 0.08F) : Palette.PanelAlt);
+        var trackColor = !Enabled ? Palette.PanelAlt : Checked ? Palette.Accent : (_hovered ? ControlPaint.Light(Palette.PanelAlt, 0.08F) : Palette.PanelAlt);
         using var track = new SolidBrush(trackColor);
-        using var border = new Pen(Checked ? Palette.Accent : Palette.Border);
+        using var border = new Pen(Checked && Enabled ? Palette.Accent : Palette.Border);
         e.Graphics.FillPath(track, trackPath);
         e.Graphics.DrawPath(border, trackPath);
 
         var knobX = Checked ? switchBounds.Right - 19 : switchBounds.Left + 3;
         var knobRect = new Rectangle(knobX, switchBounds.Top + 3, 16, 16);
-        using var knob = new SolidBrush(Checked ? Palette.AccentText : Palette.MutedText);
+        using var knob = new SolidBrush(Checked && Enabled ? Palette.AccentText : Palette.MutedText);
         e.Graphics.FillEllipse(knob, knobRect);
 
-        using var text = new SolidBrush(Palette.Text);
+        using var text = new SolidBrush(Enabled ? Palette.Text : Palette.MutedText);
         using var format = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
         e.Graphics.DrawString(Text, Font, text, new Rectangle(56, 0, Width - 56, Height), format);
+        if (Focused && ShowFocusCues && Enabled)
+        {
+            ControlPaint.DrawFocusRectangle(e.Graphics, new Rectangle(1, 1, Width - 3, Height - 3), Palette.Text, BackColor);
+        }
     }
 
     protected override void OnPaintBackground(PaintEventArgs pevent)
@@ -234,6 +369,8 @@ internal sealed class GlassSlider : Control
         Cursor = Cursors.Hand;
         Size = new Size(300, 32);
         Margin = new Padding(0, 0, 0, 0);
+        TabStop = true;
+        AccessibleRole = AccessibleRole.Slider;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
     }
 
@@ -254,6 +391,7 @@ internal sealed class GlassSlider : Control
             }
             _value = next;
             Invalidate();
+            AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
             ValueChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -262,7 +400,9 @@ internal sealed class GlassSlider : Control
     {
         if (e.Button == MouseButtons.Left)
         {
+            Focus();
             _dragging = true;
+            Capture = true;
             SetValueFromX(e.X);
         }
         base.OnMouseDown(e);
@@ -280,37 +420,122 @@ internal sealed class GlassSlider : Control
     protected override void OnMouseUp(MouseEventArgs e)
     {
         _dragging = false;
+        Capture = false;
         base.OnMouseUp(e);
+    }
+
+    protected override void OnMouseCaptureChanged(EventArgs e)
+    {
+        _dragging = false;
+        base.OnMouseCaptureChanged(e);
+    }
+
+    protected override bool IsInputKey(Keys keyData)
+    {
+        return (keyData & Keys.KeyCode) is Keys.Left or Keys.Right or Keys.Up or Keys.Down
+            or Keys.Home or Keys.End or Keys.PageUp or Keys.PageDown || base.IsInputKey(keyData);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (Enabled && e.Modifiers == Keys.None)
+        {
+            var step = Math.Max(1, (Maximum - Minimum) / 10);
+            var next = e.KeyCode switch
+            {
+                Keys.Left or Keys.Down => Value - 1,
+                Keys.Right or Keys.Up => Value + 1,
+                Keys.PageDown => Value - step,
+                Keys.PageUp => Value + step,
+                Keys.Home => Minimum,
+                Keys.End => Maximum,
+                _ => (int?)null
+            };
+            if (next.HasValue)
+            {
+                Value = next.Value;
+                e.Handled = e.SuppressKeyPress = true;
+            }
+        }
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnGotFocus(EventArgs e)
+    {
+        Invalidate();
+        base.OnGotFocus(e);
+    }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        Invalidate();
+        base.OnLostFocus(e);
+    }
+
+    protected override void OnEnabledChanged(EventArgs e)
+    {
+        if (!Enabled)
+        {
+            Capture = false;
+            _dragging = false;
+        }
+        Invalidate();
+        base.OnEnabledChanged(e);
+    }
+
+    protected override AccessibleObject CreateAccessibilityInstance() => new SliderAccessibleObject(this);
+
+    private sealed class SliderAccessibleObject(GlassSlider owner) : ControlAccessibleObject(owner)
+    {
+        public override string? Value
+        {
+            get => owner.Value.ToString();
+            set
+            {
+                if (owner.Enabled && int.TryParse(value, out var number))
+                {
+                    owner.Value = number;
+                }
+            }
+        }
     }
 
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(PaintSurface.ResolveBackColor(this, Palette.Panel));
-        var track = new Rectangle(2, Height / 2 - 3, Width - 4, 6);
+        var track = new Rectangle(10, Height / 2 - 3, Math.Max(6, Width - 20), 6);
         using var trackPath = CardPanel.RoundedRect(track, 3);
-        using var trackBrush = new SolidBrush(Palette.PanelAlt);
+        using var trackBrush = new SolidBrush(Palette.Border);
         e.Graphics.FillPath(trackBrush, trackPath);
 
         var percent = Maximum == Minimum ? 0 : (Value - Minimum) / (double)(Maximum - Minimum);
-        var fillWidth = Math.Max(6, (int)Math.Round(track.Width * percent));
-        var fillRect = new Rectangle(track.Left, track.Top, fillWidth, track.Height);
-        using var fillPath = CardPanel.RoundedRect(fillRect, 3);
-        using var fillBrush = new SolidBrush(Palette.Accent);
-        e.Graphics.FillPath(fillBrush, fillPath);
+        var fillWidth = (int)Math.Round(track.Width * percent);
+        var accent = Enabled ? Palette.Accent : Palette.MutedText;
+        if (fillWidth >= 6)
+        {
+            var fillRect = new Rectangle(track.Left, track.Top, fillWidth, track.Height);
+            using var fillPath = CardPanel.RoundedRect(fillRect, 3);
+            using var fillBrush = new SolidBrush(accent);
+            e.Graphics.FillPath(fillBrush, fillPath);
+        }
 
         var knobX = track.Left + fillWidth - 8;
-        var knob = new Rectangle(Math.Clamp(knobX, track.Left, track.Right - 16), Height / 2 - 8, 16, 16);
+        var knob = new Rectangle(knobX, Height / 2 - 8, 16, 16);
         using var shadow = new SolidBrush(Color.FromArgb(Palette.IsDark ? 90 : 45, Palette.Shadow));
         e.Graphics.FillEllipse(shadow, knob.X + 1, knob.Y + 2, knob.Width, knob.Height);
-        using var knobBrush = new SolidBrush(Palette.Accent);
+        using var knobBrush = new SolidBrush(accent);
         e.Graphics.FillEllipse(knobBrush, knob);
+        if (Focused && ShowFocusCues && Enabled)
+        {
+            ControlPaint.DrawFocusRectangle(e.Graphics, new Rectangle(1, 1, Width - 3, Height - 3), Palette.Text, BackColor);
+        }
     }
 
     private void SetValueFromX(int x)
     {
-        var trackWidth = Math.Max(1, Width - 4);
-        var percent = Math.Clamp((x - 2) / (double)trackWidth, 0, 1);
+        var trackWidth = Math.Max(1, Width - 20);
+        var percent = Math.Clamp((x - 10) / (double)trackWidth, 0, 1);
         Value = Minimum + (int)Math.Round((Maximum - Minimum) * percent);
     }
 

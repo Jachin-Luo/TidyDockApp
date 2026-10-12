@@ -69,6 +69,9 @@ internal sealed class FolderEntry
     public string EntryKey { get; set; } = "";
     public bool IsDirectory { get; set; }
     public bool IsShortcut { get; set; }
+    public bool IsHidden { get; set; }
+    public long LastWriteTimeUtcTicks { get; set; }
+    public long Length { get; set; }
 }
 
 internal sealed class FolderReadResult

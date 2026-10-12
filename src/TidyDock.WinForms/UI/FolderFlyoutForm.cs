@@ -20,7 +20,9 @@ internal sealed class FolderFlyoutForm : Form
     private readonly LogService _log;
     private readonly System.Windows.Forms.Timer _closeTimer = new() { Interval = 650 };
     private readonly System.Windows.Forms.Timer _animationTimer = new() { Interval = 16 };
+    private readonly System.Windows.Forms.Timer _iconRefreshTimer = new() { Interval = 32 };
     private readonly Stopwatch _animationClock = new();
+    private readonly SemaphoreSlim _iconLoadGate = new(1, 1);
     private readonly ToolTip _nameToolTip = new()
     {
         AutoPopDelay = 6000,
@@ -30,6 +32,8 @@ internal sealed class FolderFlyoutForm : Form
     };
     private readonly Stack<string> _history = new();
     private readonly List<EntryHit> _entryHits = [];
+    private readonly HashSet<string> _requestedIconKeys = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _iconLoadCts;
     private ThemePalette _palette;
     private Rectangle _backRect;
     private Rectangle _explorerRect;
@@ -51,6 +55,8 @@ internal sealed class FolderFlyoutForm : Form
     private Point _closeOffset = new(0, AnimationOffset);
     private byte _animationStartAlpha;
     private byte _animationAlpha = 255;
+    private readonly FrostedBackdrop _frost;
+    private bool _rendering;
 
     public FolderFlyoutForm(AppConfig config, FolderService folderService, IconService iconService, LogService log)
     {
@@ -59,6 +65,8 @@ internal sealed class FolderFlyoutForm : Form
         _iconService = iconService;
         _log = log;
         _palette = Theme.Get(_config.Dock.Theme);
+        _frost = new FrostedBackdrop(this, () => new Rectangle(1, 1, Width - 2, Height - 2));
+        _frost.ActiveChanged += delegate { RenderLayeredFlyout(); };
 
         Text = "TidyDock";
         FormBorderStyle = FormBorderStyle.None;
@@ -82,6 +90,14 @@ internal sealed class FolderFlyoutForm : Form
             CloseWithAnimation();
         };
         _animationTimer.Tick += delegate { StepAnimation(); };
+        _iconRefreshTimer.Tick += delegate
+        {
+            _iconRefreshTimer.Stop();
+            if (!IsDisposed && IsHandleCreated && Visible)
+            {
+                RenderLayeredFlyout();
+            }
+        };
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -102,12 +118,24 @@ internal sealed class FolderFlyoutForm : Form
     {
         if (disposing)
         {
+            _frost.Dispose();
+            _iconLoadCts?.Cancel();
+            _iconLoadCts?.Dispose();
             _closeTimer.Dispose();
             _animationTimer.Dispose();
+            _iconRefreshTimer.Dispose();
             _animationClock.Stop();
             _nameToolTip.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    public void PrepareForFirstShow()
+    {
+        if (!IsDisposed && !IsHandleCreated)
+        {
+            _ = Handle;
+        }
     }
 
     public void ShowFor(DockItem item, Rectangle anchorScreen, string dockPosition)
@@ -142,6 +170,7 @@ internal sealed class FolderFlyoutForm : Form
     private async void LoadFolder(string path, bool addHistory)
     {
         var version = ++_loadVersion;
+        ResetIconLoadSession();
         if (addHistory && !string.IsNullOrWhiteSpace(_currentPath))
         {
             _history.Push(_currentPath);
@@ -173,6 +202,7 @@ internal sealed class FolderFlyoutForm : Form
         _loading = false;
         _result = result;
         RenderLayeredFlyout();
+        QueueVisibleIcons(version);
     }
 
     private void PositionNear(Rectangle anchor, string dockPosition)
@@ -206,11 +236,25 @@ internal sealed class FolderFlyoutForm : Form
 
     private void RenderLayeredFlyout()
     {
-        if (!IsHandleCreated || Width <= 0 || Height <= 0)
+        if (_rendering || IsDisposed || !IsHandleCreated || Width <= 0 || Height <= 0)
         {
             return;
         }
 
+        _rendering = true;
+        try
+        {
+            RenderLayeredFlyoutFrame();
+        }
+        finally
+        {
+            _rendering = false;
+        }
+    }
+
+    private void RenderLayeredFlyoutFrame()
+    {
+        _frost.Update(FrostedSurface.Tint(_palette, 1, _config.Dock.HighContrastDock), 18, _animationAlpha > 0);
         using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
         using (var graphics = Graphics.FromImage(bitmap))
         {
@@ -252,25 +296,11 @@ internal sealed class FolderFlyoutForm : Form
         graphics.Clear(Color.Transparent);
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         _entryHits.Clear();
 
         var bounds = new Rectangle(1, 1, Width - 2, Height - 2);
-        var highContrast = _config.Dock.HighContrastDock;
-        var shadowAlpha = highContrast ? (_palette.IsDark ? 122 : 70) : (_palette.IsDark ? 86 : 44);
-        var fillAlphaTop = highContrast ? (_palette.IsDark ? 0.98 : 0.96) : (_palette.IsDark ? 0.92 : 0.9);
-        var fillAlphaBottom = highContrast ? (_palette.IsDark ? 0.94 : 0.93) : (_palette.IsDark ? 0.82 : 0.86);
-        var borderAlpha = highContrast ? (_palette.IsDark ? 0.95 : 0.98) : (_palette.IsDark ? 0.74 : 0.86);
-
-        using var shadowPath = RoundedRect(new Rectangle(bounds.X + 4, bounds.Y + 8, bounds.Width - 8, bounds.Height - 7), 18);
-        using var shadow = new SolidBrush(Color.FromArgb(shadowAlpha, _palette.Shadow));
-        graphics.FillPath(shadow, shadowPath);
-
-        using var path = RoundedRect(bounds, 18);
-        using var fill = new LinearGradientBrush(bounds, WithAlpha(_palette.Panel, fillAlphaTop), WithAlpha(_palette.PanelAlt, fillAlphaBottom), 90f);
-        using var border = new Pen(WithAlpha(_palette.Border, borderAlpha));
-        graphics.FillPath(fill, path);
-        graphics.DrawPath(border, path);
+        FrostedSurface.Draw(graphics, bounds, 18, _palette, _frost.Active, highContrast: _config.Dock.HighContrastDock);
 
         DrawHeader(graphics);
         DrawContent(graphics);
@@ -435,9 +465,11 @@ internal sealed class FolderFlyoutForm : Form
                 graphics.FillPath(hover, hoverPath);
             }
 
-            var icon = _iconService.GetIcon(entry, 40);
             var iconRect = new Rectangle(rect.Left + (rect.Width - 40) / 2, rect.Top + 8, 40, 40);
-            graphics.DrawImage(icon, iconRect);
+            if (!_iconService.TryDrawFolderIcon(graphics, entry, 40, iconRect))
+            {
+                DrawPlaceholderIcon(graphics, iconRect, entry.IsDirectory);
+            }
 
             var nameRect = new Rectangle(rect.Left + 4, rect.Top + 55, rect.Width - 8, 20);
             using var nameFormat = new StringFormat
@@ -466,6 +498,36 @@ internal sealed class FolderFlyoutForm : Form
         using var countFormat = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
         var countRect = new Rectangle(rect.Right - 64, rect.Top, 54, rect.Height);
         graphics.DrawString(count.ToString(), font, muted, countRect, countFormat);
+    }
+
+    private void DrawPlaceholderIcon(Graphics graphics, Rectangle rect, bool isDirectory)
+    {
+        var fillColor = isDirectory
+            ? WithAlpha(_palette.Accent, _palette.IsDark ? 0.62 : 0.74)
+            : WithAlpha(_palette.PanelAlt, _palette.IsDark ? 0.9 : 0.96);
+        var borderColor = WithAlpha(_palette.Border, 0.75);
+        using var fill = new SolidBrush(fillColor);
+        using var border = new Pen(borderColor, 1.2F);
+
+        if (isDirectory)
+        {
+            var body = new RectangleF(rect.Left + 3, rect.Top + 10, rect.Width - 6, rect.Height - 14);
+            var tab = new RectangleF(rect.Left + 6, rect.Top + 5, rect.Width * 0.42F, 11);
+            using var bodyPath = RoundedRect(Rectangle.Round(body), 5);
+            using var tabPath = RoundedRect(Rectangle.Round(tab), 4);
+            graphics.FillPath(fill, tabPath);
+            graphics.FillPath(fill, bodyPath);
+            graphics.DrawPath(border, bodyPath);
+            return;
+        }
+
+        var page = new Rectangle(rect.Left + 7, rect.Top + 3, rect.Width - 14, rect.Height - 6);
+        using var pagePath = RoundedRect(page, 5);
+        graphics.FillPath(fill, pagePath);
+        graphics.DrawPath(border, pagePath);
+        using var line = new Pen(WithAlpha(_palette.MutedText, 0.55), 1.3F);
+        graphics.DrawLine(line, page.Left + 7, page.Top + 13, page.Right - 7, page.Top + 13);
+        graphics.DrawLine(line, page.Left + 7, page.Top + 20, page.Right - 10, page.Top + 20);
     }
 
     private void DrawTruncatedHint(Graphics graphics, Rectangle content, Font font, Brush brush)
@@ -645,6 +707,99 @@ internal sealed class FolderFlyoutForm : Form
         HideToolTip();
         _scrollOffset = Math.Max(0, _scrollOffset - Math.Sign(e.Delta) * 80);
         RenderLayeredFlyout();
+        QueueVisibleIcons(_loadVersion);
+    }
+
+    private void ResetIconLoadSession()
+    {
+        _iconLoadCts?.Cancel();
+        _iconLoadCts?.Dispose();
+        _iconLoadCts = new CancellationTokenSource();
+        _requestedIconKeys.Clear();
+        _iconRefreshTimer.Stop();
+    }
+
+    private void QueueVisibleIcons(int version)
+    {
+        if (_loading || _result is null || version != _loadVersion || _iconLoadCts is null)
+        {
+            return;
+        }
+
+        var entries = new List<FolderEntry>();
+        foreach (var hit in _entryHits)
+        {
+            var requestKey = $"{hit.Entry.IsDirectory}|{hit.Entry.Path}|40";
+            if (!_requestedIconKeys.Add(requestKey) || _iconService.IsFolderIconCached(hit.Entry, 40))
+            {
+                continue;
+            }
+            entries.Add(hit.Entry);
+        }
+
+        if (entries.Count > 0)
+        {
+            _ = LoadVisibleIconsAsync(entries, version, _iconLoadCts.Token);
+        }
+    }
+
+    private async Task LoadVisibleIconsAsync(IReadOnlyList<FolderEntry> entries, int version, CancellationToken cancellationToken)
+    {
+        var lockTaken = false;
+        try
+        {
+            await _iconLoadGate.WaitAsync(cancellationToken);
+            lockTaken = true;
+            await Task.Run(() =>
+            {
+                foreach (var entry in entries)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    _iconService.EnsureFolderIconCached(entry, 40);
+                    RequestIconRefresh(version, cancellationToken);
+                }
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
+        }
+        finally
+        {
+            if (lockTaken)
+            {
+                _iconLoadGate.Release();
+            }
+        }
+    }
+
+    private void RequestIconRefresh(int version, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested || IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (cancellationToken.IsCancellationRequested || IsDisposed || version != _loadVersion)
+                {
+                    return;
+                }
+                if (!_iconRefreshTimer.Enabled)
+                {
+                    _iconRefreshTimer.Start();
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private void StartCloseTimer()

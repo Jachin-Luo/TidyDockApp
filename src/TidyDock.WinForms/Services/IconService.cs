@@ -1,5 +1,6 @@
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using TidyDock.WinForms.Core;
 
@@ -8,11 +9,19 @@ namespace TidyDock.WinForms.Services;
 internal sealed class IconService : IDisposable
 {
     private const int MaxCacheEntries = 256;
+    private const int MaxFolderCacheEntries = 256;
+    private const int MaxPersistentFolderCacheEntries = 512;
     private readonly AppPaths _paths;
     private readonly LogService _log;
     private readonly object _cacheLock = new();
     private readonly Dictionary<string, CacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _lru = new();
+    private readonly object _folderCacheLock = new();
+    private readonly object _folderLoadLock = new();
+    private readonly Dictionary<string, CacheEntry> _folderCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly LinkedList<string> _folderLru = new();
+    private int _persistentFolderCacheWrites;
+    private bool _disposed;
 
     public IconService(AppPaths paths, LogService log)
     {
@@ -35,7 +44,7 @@ internal sealed class IconService : IDisposable
             if (_cache.TryGetValue(key, out var existing))
             {
                 loaded.Dispose();
-                Touch(existing);
+                Touch(existing, _lru);
                 return existing.Image;
             }
 
@@ -46,15 +55,72 @@ internal sealed class IconService : IDisposable
         }
     }
 
-    public Image GetIcon(FolderEntry entry, int size)
+    public bool IsFolderIconCached(FolderEntry entry, int size)
     {
-        var item = new DockItem
+        var key = CreateFolderIconKey(entry, size);
+        lock (_folderCacheLock)
         {
-            Type = entry.IsDirectory ? DockItemTypes.Folder : DockItemTypes.File,
-            Name = entry.Name,
-            Target = entry.Path
-        };
-        return GetIcon(item, size);
+            return _folderCache.ContainsKey(key);
+        }
+    }
+
+    public bool TryDrawFolderIcon(Graphics graphics, FolderEntry entry, int size, Rectangle targetBounds)
+    {
+        var key = CreateFolderIconKey(entry, size);
+        lock (_folderCacheLock)
+        {
+            if (!_folderCache.TryGetValue(key, out var cached))
+            {
+                return false;
+            }
+
+            Touch(cached, _folderLru);
+            graphics.DrawImage(cached.Image, targetBounds);
+            return true;
+        }
+    }
+
+    public void EnsureFolderIconCached(FolderEntry entry, int size)
+    {
+        lock (_folderLoadLock)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            var key = CreateFolderIconKey(entry, size);
+            lock (_folderCacheLock)
+            {
+                if (_folderCache.TryGetValue(key, out var existing))
+                {
+                    Touch(existing, _folderLru);
+                    return;
+                }
+            }
+
+            var loaded = TryLoadPersistentFolderIcon(key) ?? LoadFolderEntryIcon(entry, size);
+            SavePersistentFolderIcon(key, loaded);
+
+            lock (_folderCacheLock)
+            {
+                if (_disposed)
+                {
+                    loaded.Dispose();
+                    return;
+                }
+                if (_folderCache.TryGetValue(key, out var existing))
+                {
+                    loaded.Dispose();
+                    Touch(existing, _folderLru);
+                    return;
+                }
+
+                var node = _folderLru.AddLast(key);
+                _folderCache[key] = new CacheEntry(loaded, node);
+                TrimCache(_folderCache, _folderLru, MaxFolderCacheEntries);
+            }
+        }
     }
 
     public string ImportCustomIcon(string path)
@@ -70,18 +136,21 @@ internal sealed class IconService : IDisposable
 
     public void Clear()
     {
-        ClearMemoryCache();
-        try
+        lock (_folderLoadLock)
         {
-            if (Directory.Exists(_paths.Cache))
+            ClearMemoryCache();
+            try
             {
-                Directory.Delete(_paths.Cache, true);
+                if (Directory.Exists(_paths.Cache))
+                {
+                    Directory.Delete(_paths.Cache, true);
+                }
+                Directory.CreateDirectory(_paths.Cache);
             }
-            Directory.CreateDirectory(_paths.Cache);
-        }
-        catch (Exception ex)
-        {
-            _log.Error(ex);
+            catch (Exception ex)
+            {
+                _log.Error(ex);
+            }
         }
     }
 
@@ -96,6 +165,16 @@ internal sealed class IconService : IDisposable
             _cache.Clear();
             _lru.Clear();
         }
+
+        lock (_folderCacheLock)
+        {
+            foreach (var entry in _folderCache.Values)
+            {
+                entry.Image.Dispose();
+            }
+            _folderCache.Clear();
+            _folderLru.Clear();
+        }
     }
 
     private Image? TryGetCachedIcon(string key)
@@ -107,27 +186,171 @@ internal sealed class IconService : IDisposable
                 return null;
             }
 
-            Touch(entry);
+            Touch(entry, _lru);
             return entry.Image;
         }
     }
 
-    private void Touch(CacheEntry entry)
+    private static void Touch(CacheEntry entry, LinkedList<string> lru)
     {
-        _lru.Remove(entry.Node);
-        _lru.AddLast(entry.Node);
+        lru.Remove(entry.Node);
+        lru.AddLast(entry.Node);
     }
 
     private void TrimCache()
     {
-        while (_cache.Count > MaxCacheEntries && _lru.First is not null)
+        TrimCache(_cache, _lru, MaxCacheEntries);
+    }
+
+    private static void TrimCache(Dictionary<string, CacheEntry> cache, LinkedList<string> lru, int maxEntries)
+    {
+        while (cache.Count > maxEntries && lru.First is not null)
         {
-            var key = _lru.First.Value;
-            _lru.RemoveFirst();
-            if (_cache.Remove(key, out var entry))
+            var key = lru.First.Value;
+            lru.RemoveFirst();
+            if (cache.Remove(key, out var entry))
             {
                 entry.Image.Dispose();
             }
+        }
+    }
+
+    private Image LoadFolderEntryIcon(FolderEntry entry, int size)
+    {
+        var item = new DockItem
+        {
+            Type = entry.IsDirectory ? DockItemTypes.Folder : DockItemTypes.File,
+            Name = entry.Name,
+            Target = entry.Path
+        };
+        return LoadIcon(item, size, wrapCustomIcons: false);
+    }
+
+    private string CreateFolderIconKey(FolderEntry entry, int size)
+    {
+        var source = $"folder-v1|{size}|{entry.IsDirectory}|{entry.LastWriteTimeUtcTicks}|{entry.Length}|{entry.Path}";
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
+    }
+
+    private Image? TryLoadPersistentFolderIcon(string key)
+    {
+        var path = GetPersistentFolderIconPath(key);
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            using var source = Image.FromFile(path);
+            var image = new Bitmap(source);
+            try
+            {
+                File.SetLastAccessTimeUtc(path, DateTime.UtcNow);
+            }
+            catch
+            {
+            }
+            return image;
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
+            try
+            {
+                File.Delete(path);
+            }
+            catch
+            {
+            }
+            return null;
+        }
+    }
+
+    private void SavePersistentFolderIcon(string key, Image image)
+    {
+        var path = GetPersistentFolderIconPath(key);
+        if (File.Exists(path))
+        {
+            return;
+        }
+
+        string? temporaryPath = null;
+        try
+        {
+            var directory = Path.GetDirectoryName(path)!;
+            Directory.CreateDirectory(directory);
+            temporaryPath = Path.Combine(directory, $"{key}-{Guid.NewGuid():N}.tmp");
+            using (var bitmap = new Bitmap(image.Width, image.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb))
+            using (var graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.Clear(Color.Transparent);
+                graphics.DrawImage(image, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+                bitmap.Save(temporaryPath, System.Drawing.Imaging.ImageFormat.Png);
+            }
+            File.Move(temporaryPath, path, true);
+            temporaryPath = null;
+
+            var writes = Interlocked.Increment(ref _persistentFolderCacheWrites);
+            if (writes == 1 || writes % 32 == 0)
+            {
+                TrimPersistentFolderCache();
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(temporaryPath))
+            {
+                try
+                {
+                    File.Delete(temporaryPath);
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    private string GetPersistentFolderIconPath(string key)
+    {
+        return Path.Combine(_paths.Cache, "folder-icons", key + ".png");
+    }
+
+    private void TrimPersistentFolderCache()
+    {
+        try
+        {
+            var directory = Path.Combine(_paths.Cache, "folder-icons");
+            if (!Directory.Exists(directory))
+            {
+                return;
+            }
+
+            var files = new DirectoryInfo(directory)
+                .EnumerateFiles("*.png", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(file => file.LastAccessTimeUtc)
+                .ThenByDescending(file => file.LastWriteTimeUtc)
+                .Skip(MaxPersistentFolderCacheEntries)
+                .ToList();
+            foreach (var file in files)
+            {
+                try
+                {
+                    file.Delete();
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error(ex);
         }
     }
 
@@ -542,7 +765,11 @@ internal sealed class IconService : IDisposable
 
     public void Dispose()
     {
-        ClearMemoryCache();
+        lock (_folderLoadLock)
+        {
+            _disposed = true;
+            ClearMemoryCache();
+        }
     }
 
     private sealed record CacheEntry(Image Image, LinkedListNode<string> Node);

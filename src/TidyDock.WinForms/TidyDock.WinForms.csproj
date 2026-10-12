@@ -15,6 +15,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="TidyDock.UiTests" />
     <Compile Remove="installer\**\*.cs" />
     <Content Include="..\TidyDock\assets\TidyDock.ico" Link="assets\TidyDock.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

@@ -48,6 +48,8 @@ powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Test-P
 
 - 无边框自绘 Dock 窗口。
 - 透明玻璃风格 Dock 底座和悬停放大，可开启增强底座对比度。
+- Dock 与文件夹浮窗使用传统磨砂玻璃材质：系统背景模糊、浅深色半透明底色、细亮边。Windows 10 1803 及以上尝试启用合成器效果；关闭系统透明效果、启用高对比度或合成不可用时使用实色底板。
+- 设置页保留实色表单和中性配色，避免原生控件在透明合成下缺字。磨砂背景不依赖桌面截图或持续刷新计时器。
 - 支持应用、文件、文件夹、网址、分隔符和设置项。
 - 空 Dock 会显示首次使用入口：添加应用/文件、添加文件夹、打开设置。
 - 支持拖拽文件/文件夹到 Dock。
@@ -58,6 +60,9 @@ powershell -ExecutionPolicy Bypass -File '.\src\TidyDock.WinForms\scripts\Test-P
 - 支持中文右键菜单和托盘菜单。
 - 设置窗口使用草稿流程，提供 `预览到 Dock` 和 `保存并关闭`。
 - 设置窗口包含显示器选择、文件夹面板展示数量、高度、隐藏文件和复制诊断信息。
+- 设置按分类标签切换，Dock 项支持搜索、上下移动和撤销移除；列表高度随窗口调整，操作栏保持可见。
+- 自绘按钮支持 Enter / Space，开关支持 Space，滑条支持方向键、Home / End 和 PageUp / PageDown。
+- Dock 项列表支持 F2 重命名、Delete 移除、Alt + 上下键排序、Ctrl + Z 撤销移除；Ctrl + F 搜索，Ctrl + Tab 切换设置分类。
 - 支持自动隐藏热区。
 - 支持当前用户开机启动设置。
 - 支持 portable zip 和当前用户安装器。

@@ -12,12 +12,11 @@ internal sealed class SettingsForm : Form
     private const string ThisPcTarget = "shell:MyComputerFolder";
     private const int FormDefaultWidth = 960;
     private const int FormMinWidth = 860;
-    private const int CardWidth = 860;
-    private const int SectionWidth = 830;
     private const int RowWidth = 830;
     private const int ItemTableHeaderHeight = 30;
     private const int ItemTableRowHeight = 34;
-    private const int ItemTableMinRows = 4;
+    private const int ItemTableMinRows = 2;
+    private const int ItemTableMaxRows = 8;
 
     private readonly AppConfig _config;
     private readonly AppConfig _originalConfig;
@@ -53,6 +52,19 @@ internal sealed class SettingsForm : Form
     private GlassButton? _manageGroupsButton;
     private GlassButton? _removeButton;
     private GlassButton? _moreItemButton;
+    private GlassButton? _moveUpButton;
+    private GlassButton? _moveDownButton;
+    private GlassButton? _undoRemoveButton;
+    private TextBox? _itemSearch;
+    private Label? _itemCount;
+    private Label? _emptyItemsLabel;
+    private readonly ToolTip _toolTip = new();
+    private readonly List<FlowLayoutPanel> _sections = [];
+    private readonly Stack<(DockItem Item, int Index)> _removedItems = new();
+    private FlowLayoutPanel _navigation = null!;
+    private int _activeSection;
+    private string _itemQuery = "";
+    private bool _building;
     private ThemePalette _palette;
 
     public SettingsForm(AppConfig config, AppConfig originalConfig, IconService iconService, ShortcutService shortcutService, StartupService startupService, DataBackupService backupService, Action<AppConfig> preview, Action<AppConfig> commit, Action<AppConfig> cancel)
@@ -87,6 +99,8 @@ internal sealed class SettingsForm : Form
     {
         if (disposing)
         {
+            _items.SmallImageList?.Dispose();
+            _toolTip.Dispose();
         }
 
         base.Dispose(disposing);
@@ -99,6 +113,7 @@ internal sealed class SettingsForm : Form
             if (ShouldConfirmClose())
             {
                 var result = MessageBox.Show(
+                    this,
                     "\u653e\u5f03\u672c\u6b21\u4fee\u6539\u5e76\u6062\u590d\u6253\u5f00\u8bbe\u7f6e\u524d\u7684 Dock \u72b6\u6001\uff1f",
                     "TidyDock",
                     MessageBoxButtons.YesNo,
@@ -127,19 +142,36 @@ internal sealed class SettingsForm : Form
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        using var background = new LinearGradientBrush(
-            ClientRectangle,
-            _palette.IsDark ? Color.FromArgb(17, 19, 23) : Color.FromArgb(236, 243, 247),
-            _palette.IsDark ? Color.FromArgb(31, 35, 41) : Color.FromArgb(248, 250, 252),
-            90f);
-        e.Graphics.FillRectangle(background, ClientRectangle);
+        e.Graphics.Clear(_palette.Window);
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
         if (keyData == Keys.Escape)
         {
+            if (_itemSearch?.Focused == true && _itemSearch.TextLength > 0)
+            {
+                _itemSearch.Clear();
+                return true;
+            }
             CancelSettings(this, EventArgs.Empty);
+            return true;
+        }
+
+        if (keyData == (Keys.Control | Keys.F) && _activeSection == 0)
+        {
+            _itemSearch?.Focus();
+            _itemSearch?.SelectAll();
+            return true;
+        }
+
+        if (keyData is (Keys.Control | Keys.Tab) or (Keys.Control | Keys.Shift | Keys.Tab))
+        {
+            var direction = keyData.HasFlag(Keys.Shift) ? -1 : 1;
+            var index = (_activeSection + direction + _sections.Count) % _sections.Count;
+            var tab = (RadioButton)_navigation.Controls[index];
+            tab.Checked = true;
+            tab.Focus();
             return true;
         }
 
@@ -166,19 +198,31 @@ internal sealed class SettingsForm : Form
 
     private void Build()
     {
-        Controls.Clear();
+        _building = true;
+        SuspendLayout();
+        var selectedId = SelectedDockItem()?.Id;
+        _items.SmallImageList?.Dispose();
+        _toolTip.RemoveAll();
+        foreach (var control in Controls.Cast<Control>().ToArray())
+        {
+            control.Dispose();
+        }
+        _items.Dispose();
+        _sections.Clear();
+        _scrollRoot = null;
         ApplyTheme();
 
         var shell = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            RowCount = 3,
+            RowCount = 4,
             ColumnCount = 1,
             BackColor = _palette.Window
         };
-        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
         Controls.Add(shell);
 
         var header = new Panel
@@ -191,52 +235,33 @@ internal sealed class SettingsForm : Form
 
         var title = new Label
         {
-            Text = "TidyDock",
+            Text = "TidyDock 设置",
             AutoSize = true,
-            Font = new Font("Segoe UI", 18F, FontStyle.Bold, GraphicsUnit.Point),
+            Font = new Font("Segoe UI", 16F, FontStyle.Bold, GraphicsUnit.Point),
             ForeColor = _palette.Text,
             BackColor = _palette.Window,
             Location = new Point(22, 16)
         };
         header.Controls.Add(title);
 
-        var subtitle = new Label
-        {
-            Text = "\u4f4e\u8d44\u6e90\u5360\u7528\u7684 Windows Dock",
-            AutoSize = true,
-            Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point),
-            ForeColor = _palette.MutedText,
-            BackColor = _palette.Window,
-            Location = new Point(24, 50)
-        };
-        header.Controls.Add(subtitle);
-
-        var badge = new Label
-        {
-            Text = "WinForms v0.2 \u9884\u89c8\u7248",
-            AutoSize = true,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point),
-            BackColor = _palette.Accent,
-            ForeColor = _palette.AccentText,
-            Padding = new Padding(10, 5, 10, 5),
-            Location = new Point(560, 24),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        header.Controls.Add(badge);
-        header.Resize += delegate { badge.Left = Math.Max(22, header.ClientSize.Width - badge.Width - 32); };
-
-        var root = new FlowLayoutPanel
+        _navigation = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
+            Padding = new Padding(22, 0, 22, 0),
+            Margin = Padding.Empty,
             WrapContents = false,
-            AutoScroll = true,
-            Padding = new Padding(22, 0, 22, 18),
-            BackColor = _palette.Window
+            BackColor = _palette.Window,
+            AccessibleName = "设置分类"
         };
-        _scrollRoot = root;
-        shell.Controls.Add(root, 0, 1);
-        ApplyNativeScrollTheme();
+        shell.Controls.Add(_navigation, 0, 1);
+
+        var root = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Margin = Padding.Empty,
+            BackColor = _palette.Panel
+        };
+        shell.Controls.Add(root, 0, 2);
 
         BuildDockItemsSection(root);
 
@@ -257,7 +282,7 @@ internal sealed class SettingsForm : Form
             panel.Controls.Add(MakeNumber("\u56fe\u6807\u95f4\u8ddd", _config.Dock.IconGap, 0, 32, "\u50cf\u7d20", value => { _config.Dock.IconGap = value; }));
             panel.Controls.Add(MakeNumber("\u5706\u89d2\u534a\u5f84", _config.Dock.CornerRadius, 6, 40, "\u50cf\u7d20", value => { _config.Dock.CornerRadius = value; }));
             panel.Controls.Add(MakePercent("\u900f\u660e\u5ea6", _config.Dock.Opacity, value => { _config.Dock.Opacity = value; }));
-            panel.Controls.Add(MakePercent("\u60ac\u505c\u653e\u5927", _config.Dock.Magnification - 1, value => { _config.Dock.Magnification = 1 + value; }));
+            panel.Controls.Add(MakePercent("\u60ac\u505c\u653e\u5927", _config.Dock.Magnification - 1, value => { _config.Dock.Magnification = 1 + value; }, 80));
             panel.Controls.Add(MakeCheck("\u589e\u5f3a\u5e95\u5ea7\u5bf9\u6bd4\u5ea6", _config.Dock.HighContrastDock, value => { _config.Dock.HighContrastDock = value; }));
         });
 
@@ -290,7 +315,15 @@ internal sealed class SettingsForm : Form
             panel.Controls.Add(backupRow);
         });
 
-        shell.Controls.Add(BuildFooter(), 0, 2);
+        shell.Controls.Add(BuildFooter(), 0, 3);
+        _building = false;
+        ((RadioButton)_navigation.Controls[Math.Clamp(_activeSection, 0, _sections.Count - 1)]).Checked = true;
+        ResumeLayout(true);
+        var selectedRow = _items.Items.Cast<ListViewItem>().FirstOrDefault(row => (row.Tag as DockItem)?.Id == selectedId);
+        if (selectedRow is not null)
+        {
+            SelectItemIndex(selectedRow.Index);
+        }
         UpdateFooterState();
     }
 
@@ -338,6 +371,57 @@ internal sealed class SettingsForm : Form
     {
         AddSection(root, "Dock \u9879", panel =>
         {
+            var searchRow = new TableLayoutPanel
+            {
+                Width = RowWidth,
+                Height = 38,
+                ColumnCount = 4,
+                RowCount = 1,
+                Margin = new Padding(0, 0, 0, 10)
+            };
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 30));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
+            _itemSearch = new TextBox
+            {
+                Dock = DockStyle.Fill,
+                PlaceholderText = "搜索名称或目标",
+                AccessibleName = "搜索 Dock 项",
+                BackColor = _palette.PanelAlt,
+                ForeColor = _palette.Text,
+                BorderStyle = BorderStyle.FixedSingle,
+                Text = _itemQuery,
+                Margin = new Padding(0, 5, 8, 0)
+            };
+            var clearSearch = MakeIconButton("\uE711", "清空搜索", delegate { _itemSearch.Clear(); _itemSearch.Focus(); });
+            clearSearch.Enabled = _itemQuery.Length > 0;
+            _itemSearch.TextChanged += delegate
+            {
+                _itemQuery = _itemSearch.Text;
+                clearSearch.Enabled = _itemQuery.Length > 0;
+                RefreshItems();
+            };
+            searchRow.Controls.Add(new Label
+            {
+                Text = "\uE721",
+                Font = new Font("Segoe MDL2 Assets", 11F, FontStyle.Regular, GraphicsUnit.Point),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = _palette.MutedText,
+                AccessibleName = "搜索"
+            }, 0, 0);
+            searchRow.Controls.Add(_itemSearch, 1, 0);
+            searchRow.Controls.Add(clearSearch, 2, 0);
+            _itemCount = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight,
+                ForeColor = _palette.MutedText
+            };
+            searchRow.Controls.Add(_itemCount, 3, 0);
+            panel.Controls.Add(searchRow);
+
             _items = new ListView
             {
                 Height = 260,
@@ -347,7 +431,7 @@ internal sealed class SettingsForm : Form
                 HideSelection = false,
                 MultiSelect = false,
                 OwnerDraw = true,
-                Scrollable = false,
+                Scrollable = true,
                 ShowItemToolTips = true,
                 UseCompatibleStateImageBehavior = false,
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
@@ -364,9 +448,21 @@ internal sealed class SettingsForm : Form
             _items.DrawColumnHeader += DrawItemTableHeader;
             _items.DrawSubItem += DrawItemTableCell;
             _items.MouseDown += OnItemsMouseDown;
+            _items.KeyDown += OnItemsKeyDown;
+            _items.SizeChanged += delegate { ResizeItemColumns(); };
+            _items.HandleCreated += delegate { _ = DwmBackdrop.TryApplyControlTheme(_items.Handle, _palette.IsDark); };
             _items.SelectedIndexChanged += delegate { UpdateItemControls(); };
             ApplyListTheme();
             panel.Controls.Add(_items);
+            _emptyItemsLabel = new Label
+            {
+                Width = RowWidth,
+                Height = 36,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = _palette.MutedText,
+                Visible = false
+            };
+            panel.Controls.Add(_emptyItemsLabel);
 
             var addRow = MakeRow();
             addRow.Controls.Add(MakeButton("\u6dfb\u52a0\u5e94\u7528/\u6587\u4ef6", AddAppOrFile, "primary"));
@@ -380,10 +476,16 @@ internal sealed class SettingsForm : Form
             _manageGroupsButton = MakeButton("\u7ba1\u7406\u5206\u7ec4", ManageFolderGroupsSelected);
             _removeButton = MakeButton("\u79fb\u9664", RemoveSelected, "danger");
             _moreItemButton = MakeButton("\u66f4\u591a\u64cd\u4f5c", ShowMoreItemMenu);
+            _moveUpButton = MakeIconButton("\uE74A", "上移", delegate { MoveSelected(-1); });
+            _moveDownButton = MakeIconButton("\uE74B", "下移", delegate { MoveSelected(1); });
+            _undoRemoveButton = MakeIconButton("\uE7A7", "撤销移除", delegate { UndoRemove(); });
+            editRow.Controls.Add(_moveUpButton);
+            editRow.Controls.Add(_moveDownButton);
             editRow.Controls.Add(_renameButton);
             editRow.Controls.Add(_manageGroupsButton);
-            editRow.Controls.Add(_removeButton);
             editRow.Controls.Add(_moreItemButton);
+            editRow.Controls.Add(_removeButton);
+            editRow.Controls.Add(_undoRemoveButton);
             panel.Controls.Add(editRow);
             panel.Controls.Add(MakeCheck("\u4e00\u952e\u64cd\u4f5c\u5305\u542b\u81ea\u5b9a\u4e49\u56fe\u6807", _config.Dock.WrapCustomIcons, value =>
             {
@@ -398,41 +500,113 @@ internal sealed class SettingsForm : Form
 
     private void AddSection(Control parent, string title, Action<FlowLayoutPanel> build)
     {
-        var card = new CardPanel
+        var section = new FlowLayoutPanel
         {
-            Width = CardWidth,
-            Height = 120,
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            WrapContents = false,
+            FlowDirection = FlowDirection.TopDown,
             BackColor = _palette.Panel,
-            FillColor = Color.FromArgb(_palette.IsDark ? 246 : 245, _palette.Panel),
-            BorderColor = _palette.Border,
-            Radius = 14
+            Padding = new Padding(24, 20, 24, 20),
+            Visible = false
         };
-
         var panel = new FlowLayoutPanel
         {
-            Width = SectionWidth,
+            Width = RowWidth,
             AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
             Padding = new Padding(0),
             Margin = new Padding(0),
-            Location = new Point(14, 14),
             BackColor = _palette.Panel
         };
-        panel.Controls.Add(new Label
+        build(panel);
+        section.Controls.Add(panel);
+        section.ClientSizeChanged += delegate { ResizeSection(section, panel); };
+        parent.Controls.Add(section);
+        var index = _sections.Count;
+        _sections.Add(section);
+
+        var tab = new RadioButton
         {
             Text = title,
-            AutoSize = true,
-            Font = new Font("Segoe UI", 11F, FontStyle.Bold, GraphicsUnit.Point),
-            ForeColor = _palette.Text,
-            BackColor = _palette.Panel,
-            Margin = new Padding(0, 0, 0, 10)
-        });
-        build(panel);
-        panel.Height = panel.PreferredSize.Height;
-        card.Height = panel.Height + 28;
-        card.Controls.Add(panel);
-        parent.Controls.Add(card);
+            Appearance = Appearance.Button,
+            FlatStyle = FlatStyle.Flat,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Size = new Size(Math.Max(104, TextRenderer.MeasureText(title, Font).Width + 36), 40),
+            Margin = new Padding(0, 0, 4, 0),
+            BackColor = _palette.Window,
+            ForeColor = _palette.MutedText,
+            AccessibleName = title,
+            AccessibleRole = AccessibleRole.PageTab
+        };
+        tab.FlatAppearance.BorderSize = 0;
+        tab.FlatAppearance.CheckedBackColor = _palette.Panel;
+        tab.FlatAppearance.MouseOverBackColor = _palette.PanelAlt;
+        tab.CheckedChanged += delegate
+        {
+            tab.ForeColor = tab.Checked ? _palette.Accent : _palette.MutedText;
+            if (!tab.Checked)
+            {
+                return;
+            }
+            _activeSection = index;
+            foreach (var other in _sections)
+            {
+                other.Visible = other == section;
+            }
+            _scrollRoot = section;
+            section.BringToFront();
+            ResizeSection(section, panel);
+            ApplyNativeScrollTheme();
+        };
+        tab.Paint += (_, e) =>
+        {
+            if (tab.Checked)
+            {
+                using var brush = new SolidBrush(_palette.Accent);
+                e.Graphics.FillRectangle(brush, 12, tab.Height - 3, tab.Width - 24, 3);
+            }
+        };
+        _navigation.Controls.Add(tab);
+    }
+
+    private void ResizeSection(FlowLayoutPanel section, FlowLayoutPanel panel)
+    {
+        var width = Math.Max(300, section.ClientSize.Width - section.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth);
+        panel.SuspendLayout();
+        panel.MinimumSize = new Size(width, 0);
+        panel.MaximumSize = new Size(width, 0);
+        panel.Width = width;
+        foreach (Control control in panel.Controls)
+        {
+            control.Width = width - control.Margin.Horizontal;
+            if (control is FlowLayoutPanel row && row.Controls.OfType<GlassSlider>().FirstOrDefault() is { } slider)
+            {
+                slider.Width = Math.Max(100, row.ClientSize.Width - row.Controls.Cast<Control>()
+                    .Where(child => child != slider).Sum(child => child.Width + child.Margin.Horizontal) - slider.Margin.Horizontal - 4);
+            }
+        }
+        panel.ResumeLayout(true);
+        UpdateItemsTableHeight();
+        ResizeItemColumns();
+    }
+
+    private void ResizeItemColumns()
+    {
+        if (_items.IsDisposed || _items.Columns.Count != 5)
+        {
+            return;
+        }
+        var scale = _items.DeviceDpi / 96f;
+        var width = _items.ClientSize.Width;
+        _items.Columns[0].Width = (int)(78 * scale);
+        _items.Columns[3].Width = (int)(100 * scale);
+        _items.Columns[4].Width = (int)(110 * scale);
+        var remaining = Math.Max(100, width - _items.Columns[0].Width - _items.Columns[3].Width - _items.Columns[4].Width);
+        _items.Columns[1].Width = remaining * 2 / 5;
+        _items.Columns[2].Width = remaining - _items.Columns[1].Width;
     }
 
     private Control MakeCombo(string label, ComboOption[] values, string current, Action<string> change)
@@ -444,6 +618,7 @@ internal sealed class SettingsForm : Form
         combo.BackColor = _palette.PanelAlt;
         combo.ForeColor = _palette.Text;
         combo.DrawItem += DrawComboItem;
+        combo.HandleCreated += delegate { _ = DwmBackdrop.TryApplyControlTheme(combo.Handle, _palette.IsDark); };
         combo.SelectedIndexChanged += delegate
         {
             change(combo.SelectedItem is ComboOption option ? option.Value : values[0].Value);
@@ -471,10 +646,10 @@ internal sealed class SettingsForm : Form
         return row;
     }
 
-    private Control MakePercent(string label, double value, Action<double> change)
+    private Control MakePercent(string label, double value, Action<double> change, int maximum = 100)
     {
         var row = MakeLabeledRow(label);
-        var slider = new GlassSlider { Width = 420, Height = 32, Palette = _palette, Minimum = 0, Maximum = 100, Value = Math.Clamp((int)(value * 100), 0, 100), BackColor = _palette.Panel };
+        var slider = new GlassSlider { Width = 420, Height = 32, Palette = _palette, Minimum = 0, Maximum = maximum, Value = Math.Clamp((int)Math.Round(value * 100), 0, maximum), BackColor = _palette.Panel };
         slider.AccessibleName = label;
         slider.AccessibleRole = AccessibleRole.Slider;
         var valueLabel = new Label { Width = 54, Height = 32, ForeColor = _palette.MutedText, BackColor = _palette.Panel, TextAlign = ContentAlignment.MiddleRight, Text = slider.Value + "%" };
@@ -508,6 +683,7 @@ internal sealed class SettingsForm : Form
     private FlowLayoutPanel MakeLabeledRow(string label)
     {
         var row = MakeRow();
+        row.WrapContents = false;
         row.Controls.Add(new Label { Text = label, Width = 170, Height = 32, ForeColor = _palette.MutedText, BackColor = _palette.Panel, TextAlign = ContentAlignment.MiddleLeft });
         return row;
     }
@@ -529,7 +705,27 @@ internal sealed class SettingsForm : Form
 
     private FlowLayoutPanel MakeRow()
     {
-        return new FlowLayoutPanel { Width = RowWidth, Height = 38, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 0, 0, 8), BackColor = _palette.Panel };
+        return new FlowLayoutPanel
+        {
+            Width = RowWidth,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(0, 38),
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = true,
+            Margin = new Padding(0, 0, 0, 8),
+            BackColor = _palette.Panel
+        };
+    }
+
+    private GlassButton MakeIconButton(string glyph, string label, EventHandler click)
+    {
+        var button = MakeButton(glyph, click);
+        button.Size = new Size(32, 32);
+        button.Font = new Font("Segoe MDL2 Assets", 10F, FontStyle.Regular, GraphicsUnit.Point);
+        button.AccessibleName = label;
+        _toolTip.SetToolTip(button, label);
+        return button;
     }
 
     private GlassButton MakeButton(string text, EventHandler click, string style = "normal")
@@ -612,15 +808,13 @@ internal sealed class SettingsForm : Form
 
     private void ConfirmSettings(object? sender, EventArgs e)
     {
-        _completed = true;
         _commit(ConfigService.Clone(_config));
+        _completed = true;
         Close();
     }
 
     private void CancelSettings(object? sender, EventArgs e)
     {
-        _completed = true;
-        _cancel(_originalConfig);
         Close();
     }
 
@@ -738,6 +932,7 @@ internal sealed class SettingsForm : Form
             var imported = _backupService.ReadConfigFromBackup(path);
             _backupService.ImportResources(path);
             ConfigService.CopyInto(_config, imported);
+            _removedItems.Clear();
             _iconService.ClearMemoryCache();
             _palette = Theme.Get(_config.Dock.Theme);
             var scrollY = CurrentScrollY();
@@ -759,17 +954,16 @@ internal sealed class SettingsForm : Form
 
     private void UpdateFooterState()
     {
-        if (_statusLabel is null || _previewButton is null || _confirmButton is null)
+        if (_building || _statusLabel is null || _previewButton is null || _confirmButton is null)
         {
             return;
         }
 
-        var draftMatchesOriginal = ConfigService.AreEquivalent(_config, _originalConfig);
         var draftMatchesPreview = ConfigService.AreEquivalent(_config, _lastPreviewConfig);
         var previewMatchesOriginal = ConfigService.AreEquivalent(_lastPreviewConfig, _originalConfig);
 
         _previewButton.Enabled = !draftMatchesPreview;
-        _confirmButton.Enabled = !draftMatchesOriginal;
+        _confirmButton.Enabled = true;
 
         if (!draftMatchesPreview)
         {
@@ -800,7 +994,11 @@ internal sealed class SettingsForm : Form
         var selectedId = SelectedDockItem()?.Id ?? "";
         _items.BeginUpdate();
         _items.Items.Clear();
-        foreach (var item in _config.Items)
+        var query = _itemQuery.Trim();
+        foreach (var item in _config.Items.Where(item => query.Length == 0
+            || item.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || item.Target.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || GetTypeLabel(item).Contains(query, StringComparison.OrdinalIgnoreCase)))
         {
             _items.Items.Add(CreateDockItemRow(item));
         }
@@ -816,7 +1014,17 @@ internal sealed class SettingsForm : Form
             }
         }
         _items.EndUpdate();
+        if (_itemCount is not null)
+        {
+            _itemCount.Text = query.Length == 0 ? $"{_config.Items.Count} 项" : $"{_items.Items.Count} / {_config.Items.Count} 项";
+        }
+        if (_emptyItemsLabel is not null)
+        {
+            _emptyItemsLabel.Text = _config.Items.Count == 0 ? "暂无 Dock 项" : "没有匹配的项目";
+            _emptyItemsLabel.Visible = _items.Items.Count == 0;
+        }
         UpdateItemsTableHeight();
+        ResizeItemColumns();
         UpdateItemControls();
         UpdateFooterState();
     }
@@ -828,19 +1036,18 @@ internal sealed class SettingsForm : Form
             return;
         }
 
-        var rows = Math.Max(ItemTableMinRows, _items.Items.Count);
-        _items.Height = ItemTableHeaderHeight + rows * ItemTableRowHeight + 2;
-
-        if (_items.Parent is FlowLayoutPanel panel)
+        var scale = _items.DeviceDpi / 96f;
+        var rows = Math.Clamp(_items.Items.Count, ItemTableMinRows, ItemTableMaxRows);
+        if (_items.Parent is FlowLayoutPanel panel && panel.Parent is FlowLayoutPanel section)
         {
-            panel.Height = panel.PreferredSize.Height;
-            if (panel.Parent is CardPanel card)
-            {
-                card.Height = panel.Height + 28;
-            }
+            var otherHeight = panel.Controls.Cast<Control>()
+                .Where(control => control != _items && control.Visible)
+                .Sum(control => control.Height + control.Margin.Vertical);
+            var available = section.ClientSize.Height - section.Padding.Vertical - otherHeight - _items.Margin.Vertical;
+            var visibleRows = (int)((available / scale - ItemTableHeaderHeight - 2) / ItemTableRowHeight);
+            rows = Math.Clamp(visibleRows, ItemTableMinRows, rows);
         }
-
-        _scrollRoot?.PerformLayout();
+        _items.Height = (int)((ItemTableHeaderHeight + rows * ItemTableRowHeight + 2) * scale);
     }
 
     private void AddAppOrFile(object? sender, EventArgs e)
@@ -927,6 +1134,9 @@ internal sealed class SettingsForm : Form
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("\u66f4\u6362\u56fe\u6807", null, ChangeIconSelected).Enabled = canChangeIcon;
         menu.Items.Add("\u6062\u590d\u9ed8\u8ba4\u56fe\u6807", null, ResetIconSelected).Enabled = canChangeIcon && !string.IsNullOrWhiteSpace(selected?.IconPath);
+        menu.Items.Add("\u5207\u6362\u5706\u89d2\u6837\u5f0f", null, delegate { if (selected is not null) ToggleIconStyle(selected); }).Enabled = canChangeIcon;
+        menu.Items.Add("\u5207\u6362\u6587\u4ef6\u5939\u6253\u5f00\u65b9\u5f0f", null, delegate { if (selected is not null) ToggleOpenBehavior(selected); })
+            .Enabled = selected?.Type == DockItemTypes.Folder;
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("\u4e00\u952e\u5957\u5706\u89d2\u56fe\u6807", null, delegate { ApplyIconStyleToAll(DockIconStyles.RoundedRect); }).Enabled = _config.Items.Any(item => !item.IsSeparator);
         menu.Items.Add("\u6062\u590d\u539f\u59cb\u6837\u5f0f", null, delegate { ApplyIconStyleToAll(DockIconStyles.Default); }).Enabled = _config.Items.Any(item => !item.IsSeparator);
@@ -979,7 +1189,7 @@ internal sealed class SettingsForm : Form
         _config.Items.RemoveAt(index);
         _config.Items.Insert(newIndex, item);
         RefreshItems();
-        SelectItemIndex(newIndex);
+        _items.Focus();
     }
 
     private void RenameSelected(object? sender, EventArgs e)
@@ -1004,9 +1214,60 @@ internal sealed class SettingsForm : Form
         {
             return;
         }
+        var viewIndex = _items.SelectedIndices[0];
+        _removedItems.Push((_config.Items[index], index));
         _config.Items.RemoveAt(index);
         RefreshItems();
-        UpdateItemControls();
+        SelectItemIndex(Math.Min(viewIndex, _items.Items.Count - 1));
+        _items.Focus();
+    }
+
+    private void UndoRemove()
+    {
+        if (!_removedItems.TryPop(out var removed))
+        {
+            return;
+        }
+        _config.Items.Insert(Math.Min(removed.Index, _config.Items.Count), removed.Item);
+        // Reveal the restored item even when it no longer matches the current filter.
+        _itemQuery = "";
+        if (_itemSearch is not null)
+        {
+            _itemSearch.Text = "";
+        }
+        RefreshItems();
+        var row = _items.Items.Cast<ListViewItem>().First(item => ReferenceEquals(item.Tag, removed.Item));
+        SelectItemIndex(row.Index);
+        _items.Focus();
+    }
+
+    private void OnItemsKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyData == Keys.F2)
+        {
+            RenameSelected(sender, EventArgs.Empty);
+        }
+        else if (e.KeyData == Keys.Delete)
+        {
+            RemoveSelected(sender, EventArgs.Empty);
+        }
+        else if (e.KeyData == (Keys.Alt | Keys.Up))
+        {
+            MoveSelected(-1);
+        }
+        else if (e.KeyData == (Keys.Alt | Keys.Down))
+        {
+            MoveSelected(1);
+        }
+        else if (e.KeyData == (Keys.Control | Keys.Z))
+        {
+            UndoRemove();
+        }
+        else
+        {
+            return;
+        }
+        e.Handled = e.SuppressKeyPress = true;
     }
 
     private void ChangeIconSelected(object? sender, EventArgs e)
@@ -1177,6 +1438,21 @@ internal sealed class SettingsForm : Form
         var item = SelectedDockItem();
         var hasSelection = item is not null;
         var isFolder = item is not null && string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase);
+        var index = SelectedDockIndex();
+        if (_moveUpButton is not null)
+        {
+            _moveUpButton.Enabled = index > 0;
+        }
+        if (_moveDownButton is not null)
+        {
+            _moveDownButton.Enabled = index >= 0 && index < _config.Items.Count - 1;
+        }
+        if (_undoRemoveButton is not null)
+        {
+            _undoRemoveButton.Enabled = _removedItems.Count > 0;
+            _toolTip.SetToolTip(_undoRemoveButton, _removedItems.TryPeek(out var removed)
+                ? $"撤销移除：{removed.Item.Name}" : "撤销移除");
+        }
 
         if (_renameButton is not null)
         {
@@ -1203,6 +1479,10 @@ internal sealed class SettingsForm : Form
     {
         BackColor = _palette.Window;
         ForeColor = _palette.Text;
+        if (IsHandleCreated)
+        {
+            _ = DwmBackdrop.TryApply(Handle, _palette.IsDark);
+        }
     }
 
     private void ApplyNativeScrollTheme()
@@ -1298,23 +1578,19 @@ internal sealed class SettingsForm : Form
 
     private void DrawInlineSwitch(Graphics graphics, Rectangle bounds, bool enabledState, string text, bool enabled, bool selected)
     {
-        var switchBounds = new Rectangle(bounds.Left + 10, bounds.Top + 7, Math.Min(86, bounds.Width - 20), bounds.Height - 14);
-        using var path = CardPanel.RoundedRect(switchBounds, 10);
-        var fillColor = enabledState
-            ? (selected ? Color.FromArgb(210, _palette.AccentText) : _palette.Accent)
-            : (selected ? Color.FromArgb(70, _palette.AccentText) : _palette.PanelAlt);
+        var switchBounds = new Rectangle(bounds.Left + 8, bounds.Top + (bounds.Height - 18) / 2, 32, 18);
+        using var path = CardPanel.RoundedRect(switchBounds, 9);
+        var fillColor = selected ? _palette.AccentText : enabledState ? _palette.Accent : _palette.PanelAlt;
         using var fill = new SolidBrush(enabled ? fillColor : Color.FromArgb(80, _palette.PanelAlt));
-        using var border = new Pen(enabledState ? _palette.Accent : _palette.Border);
+        using var border = new Pen(selected ? _palette.AccentText : enabledState ? _palette.Accent : _palette.Border);
         graphics.FillPath(fill, path);
         graphics.DrawPath(border, path);
-
-        using var font = new Font(Font.FontFamily, 8F, FontStyle.Bold, GraphicsUnit.Point);
-        var textColor = enabledState
-            ? (selected ? _palette.Accent : _palette.AccentText)
-            : (selected ? _palette.AccentText : _palette.MutedText);
+        using var knob = new SolidBrush(selected ? _palette.Accent : enabledState ? _palette.AccentText : _palette.MutedText);
+        graphics.FillEllipse(knob, switchBounds.Left + (enabledState ? 17 : 3), switchBounds.Top + 3, 12, 12);
+        var textColor = selected ? _palette.AccentText : _palette.MutedText;
         using var foreground = new SolidBrush(textColor);
-        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-        graphics.DrawString(text, font, foreground, switchBounds, format);
+        using var format = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+        graphics.DrawString(text, Font, foreground, new Rectangle(switchBounds.Right + 6, bounds.Top, bounds.Right - switchBounds.Right - 8, bounds.Height), format);
     }
 
     private static void DrawCenteredText(Graphics graphics, string text, Rectangle bounds, Font font, Brush brush)
@@ -1353,7 +1629,7 @@ internal sealed class SettingsForm : Form
 
     private int SelectedDockIndex()
     {
-        return _items.SelectedItems.Count > 0 ? _items.SelectedItems[0].Index : -1;
+        return SelectedDockItem() is { } item ? _config.Items.IndexOf(item) : -1;
     }
 
     private void SelectItemIndex(int index)
@@ -1363,6 +1639,8 @@ internal sealed class SettingsForm : Form
             return;
         }
 
+        // A rebuilt list may be on a hidden category; create its handle before restoring selection.
+        _ = _items.Handle;
         _items.Items[index].Selected = true;
         _items.Items[index].Focused = true;
         _items.EnsureVisible(index);

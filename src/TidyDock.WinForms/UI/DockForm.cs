@@ -41,6 +41,8 @@ internal sealed class DockForm : Form
     private SettingsForm? _settings;
     private FolderFlyoutForm? _folderFlyout;
     private int _restoreAttempts;
+    private readonly FrostedBackdrop _frost;
+    private bool _rendering;
 
     public DockForm(
         AppConfig config,
@@ -63,6 +65,8 @@ internal sealed class DockForm : Form
         _layoutService = layoutService;
         _log = log;
         _palette = Theme.Get(_config.Dock.Theme);
+        _frost = new FrostedBackdrop(this, GetDockBackgroundBounds);
+        _frost.ActiveChanged += delegate { RenderLayeredDock(); };
         _appIcon = LoadAppIcon();
 
         Text = "TidyDock";
@@ -109,6 +113,7 @@ internal sealed class DockForm : Form
         _restoreTimer.Tick += delegate { RestoreAfterShowDesktop(); };
         _hoverAnimationTimer.Tick += delegate { StepHoverAnimation(); };
         _hotZone.MouseEnter += delegate { ShowFromAutoHide(); };
+        Application.Idle += OnApplicationIdle;
 
         ApplySettings();
         if (!_config.Dock.StartVisible)
@@ -174,6 +179,8 @@ internal sealed class DockForm : Form
     {
         if (disposing)
         {
+            Application.Idle -= OnApplicationIdle;
+            _frost.Dispose();
             _tray.Dispose();
             _appIcon.Dispose();
             _hideTimer.Dispose();
@@ -259,7 +266,7 @@ internal sealed class DockForm : Form
         base.OnPaint(e);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         e.Graphics.Clear(Color.Transparent);
         DrawDockBackground(e.Graphics);
         DrawItems(e.Graphics);
@@ -272,18 +279,32 @@ internal sealed class DockForm : Form
 
     private void RenderLayeredDock()
     {
-        if (!IsHandleCreated || Width <= 0 || Height <= 0 || WindowState == FormWindowState.Minimized)
+        if (_rendering || IsDisposed || !IsHandleCreated || Width <= 0 || Height <= 0 || WindowState == FormWindowState.Minimized)
         {
             return;
         }
 
+        _rendering = true;
+        try
+        {
+            RenderLayeredDockFrame();
+        }
+        finally
+        {
+            _rendering = false;
+        }
+    }
+
+    private void RenderLayeredDockFrame()
+    {
+        _frost.Update(FrostedSurface.Tint(_palette, _config.Dock.Opacity, _config.Dock.HighContrastDock), _config.Dock.CornerRadius);
         using var bitmap = new Bitmap(Width, Height, PixelFormat.Format32bppPArgb);
         using (var graphics = Graphics.FromImage(bitmap))
         {
             graphics.Clear(Color.Transparent);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
             graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+            graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
             DrawDockBackground(graphics);
             DrawItems(graphics);
             DrawHoverLabel(graphics);
@@ -320,49 +341,8 @@ internal sealed class DockForm : Form
 
     private void DrawDockBackground(Graphics graphics)
     {
-        var bounds = GetDockBackgroundBounds();
-        var opacity = Math.Clamp(_config.Dock.Opacity, 0, 1);
-        var highContrast = _config.Dock.HighContrastDock;
-        var shadowOpacity = _palette.IsDark ? 0.10 + (opacity * 0.18) : 0.06 + (opacity * 0.12);
-        var topOpacity = opacity * (_palette.IsDark ? 0.24 : 0.3);
-        var bottomOpacity = opacity * (_palette.IsDark ? 0.34 : 0.26);
-        var borderOpacity = 0.18 + (opacity * (_palette.IsDark ? 0.24 : 0.34));
-        var shineOpacity = opacity * (_palette.IsDark ? 0.10 : 0.22);
-        var innerOpacity = opacity * (_palette.IsDark ? 0.08 : 0.16);
-        if (highContrast)
-        {
-            shadowOpacity = Math.Max(shadowOpacity + 0.08, _palette.IsDark ? 0.24 : 0.18);
-            topOpacity = Math.Min(0.48, topOpacity + 0.06);
-            bottomOpacity = Math.Min(0.54, bottomOpacity + 0.08);
-            borderOpacity = Math.Min(0.82, Math.Max(borderOpacity + 0.22, 0.48));
-            innerOpacity = Math.Min(0.36, Math.Max(innerOpacity + 0.08, 0.18));
-            shineOpacity = Math.Min(0.26, shineOpacity + 0.04);
-        }
-
-        using var shadow = RoundedRect(new Rectangle(bounds.X + 3, bounds.Y + 6, bounds.Width - 6, bounds.Height - 4), _config.Dock.CornerRadius);
-        using var shadowBrush = new SolidBrush(WithAlpha(_palette.Shadow, shadowOpacity));
-        graphics.FillPath(shadowBrush, shadow);
-
-        using var path = RoundedRect(bounds, _config.Dock.CornerRadius);
-        using var brush = new LinearGradientBrush(
-            bounds,
-            WithAlpha(_palette.DockTop, topOpacity),
-            WithAlpha(_palette.DockBottom, bottomOpacity),
-            IsVertical() ? 0f : 90f);
-        using var pen = new Pen(WithAlpha(_palette.Border, borderOpacity));
-        graphics.FillPath(brush, path);
-
-        var shineBounds = IsVertical()
-            ? new Rectangle(bounds.Left + 4, bounds.Top + 5, Math.Max(1, bounds.Width / 3), bounds.Height - 10)
-            : new Rectangle(bounds.Left + 6, bounds.Top + 4, bounds.Width - 12, Math.Max(1, bounds.Height / 3));
-        using var shine = new LinearGradientBrush(shineBounds, WithAlpha(Color.White, shineOpacity), WithAlpha(Color.White, 0), IsVertical() ? 0f : 90f);
-        using var shinePath = RoundedRect(shineBounds, Math.Max(6, _config.Dock.CornerRadius / 2));
-        graphics.FillPath(shine, shinePath);
-
-        using var innerPen = new Pen(WithAlpha(Color.White, innerOpacity));
-        using var inner = RoundedRect(Rectangle.Inflate(bounds, -2, -2), Math.Max(4, _config.Dock.CornerRadius - 2));
-        graphics.DrawPath(innerPen, inner);
-        graphics.DrawPath(pen, path);
+        FrostedSurface.Draw(graphics, GetDockBackgroundBounds(), _config.Dock.CornerRadius, _palette,
+            _frost.Active, _config.Dock.Opacity, _config.Dock.HighContrastDock);
     }
 
     private void DrawItems(Graphics graphics)
@@ -976,9 +956,26 @@ internal sealed class DockForm : Form
             return;
         }
 
-        _folderFlyout ??= new FolderFlyoutForm(_config, _folderService, _iconService, _log);
+        EnsureFolderFlyout();
         var anchor = itemRect ?? GetItemRect(Math.Max(0, _config.Items.IndexOf(item)));
-        _folderFlyout.ShowFor(item, RectangleToScreen(anchor), _config.Dock.Position);
+        _folderFlyout!.ShowFor(item, RectangleToScreen(anchor), _config.Dock.Position);
+    }
+
+    private void OnApplicationIdle(object? sender, EventArgs e)
+    {
+        Application.Idle -= OnApplicationIdle;
+        if (IsDisposed || !_config.Items.Any(item => string.Equals(item.Type, DockItemTypes.Folder, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        EnsureFolderFlyout();
+        _folderFlyout!.PrepareForFirstShow();
+    }
+
+    private void EnsureFolderFlyout()
+    {
+        _folderFlyout ??= new FolderFlyoutForm(_config, _folderService, _iconService, _log);
     }
 
     private static bool ShouldOpenFolderInExplorer(DockItem item)
